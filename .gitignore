@@ -1,0 +1,4 @@
+node_modules/
+dashboard_cache.json
+*.json
+!package.json

@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polymarket Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0e17;
+    --card: #131a2a;
+    --card-hover: #1a2340;
+    --border: #1e2a45;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+    --green: #10b981;
+    --green-bg: rgba(16, 185, 129, 0.1);
+    --red: #ef4444;
+    --red-bg: rgba(239, 68, 68, 0.1);
+    --blue: #3b82f6;
+    --purple: #8b5cf6;
+    --yellow: #f59e0b;
+    --orange: #f97316;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .logo {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--purple), var(--blue));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  .header h1 {
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .header .subtitle {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .refresh-btn {
+    background: var(--card-hover);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+  }
+
+  .refresh-btn:hover { background: var(--border); }
+  .refresh-btn:active { transform: scale(0.97); }
+  .refresh-btn.loading { opacity: 0.6; pointer-events: none; }
+  .refresh-btn.loading .spin { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .auto-badge {
+    font-size: 11px;
+    color: var(--text-dim);
+    background: var(--card);
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+
+  /* KPI Cards */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .kpi-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.2s;
+  }
+
+  .kpi-card:hover { border-color: var(--blue); }
+
+  .kpi-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+
+  .kpi-value {
+    font-size: 28px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .kpi-value.green { color: var(--green); }
+  .kpi-value.red { color: var(--red); }
+
+  .kpi-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  /* Charts */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .chart-card h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+
+  .chart-container {
+    position: relative;
+    height: 280px;
+  }
+
+  /* Markets Table */
+  .table-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .table-card h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+
+  .table-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+
+  .tab {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-dim);
+    transition: all 0.2s;
+  }
+
+  .tab:hover { color: var(--text); background: var(--card-hover); }
+  .tab.active { color: var(--text); background: var(--card-hover); border-color: var(--border); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  th {
+    text-align: left;
+    padding: 10px 12px;
+    color: var(--text-dim);
+    font-weight: 500;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  tr:hover { background: var(--card-hover); }
+  tr:last-child td { border-bottom: none; }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .status-badge.won { background: var(--green-bg); color: var(--green); }
+  .status-badge.sold { background: rgba(59,130,246,0.1); color: var(--blue); }
+  .status-badge.holding { background: rgba(249,115,22,0.1); color: var(--orange); }
+
+  .pnl-positive { color: var(--green); }
+  .pnl-negative { color: var(--red); }
+
+  .wallet-addr {
+    font-family: 'SF Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .loading-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(10, 14, 23, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    font-size: 16px;
+  }
+
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 12px;
+  }
+
+  @media (max-width: 900px) {
+    .charts-grid { grid-template-columns: 1fr; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  加载�?..
+</div>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">🏀</div>
+    <div>
+      <h1>Polymarket Dashboard</h1>
+      <div class="subtitle">
+        <span class="wallet-addr">0x938f...da768</span>
+        <span id="updateTime" style="margin-left:12px">�?/span>
+      </div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="auto-badge">�?�?2 分钟自动刷新</span>
+    <button class="refresh-btn" id="refreshBtn" onclick="refresh(true)">
+      <span class="spin">�?/span> 刷新
+    </button>
+    <div class="status-dot" title="连接正常"></div>
+  </div>
+</div>
+
+<div class="container">
+  <!-- KPI Cards -->
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h3>📈 每日资金�?/h3>
+      <div class="chart-container">
+        <canvas id="dailyChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>📊 市场状态分�?/h3>
+      <div class="chart-container">
+        <canvas id="pieChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- P&L Bar Chart -->
+  <div class="charts-grid" style="grid-template-columns: 1fr;">
+    <div class="chart-card">
+      <h3>💰 逐市场盈�?/h3>
+      <div class="chart-container">
+        <canvas id="pnlChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Markets Table -->
+  <div class="table-card">
+    <h3>📋 市场明细</h3>
+    <div class="table-tabs">
+      <div class="tab active" data-filter="all" onclick="filterTable('all', this)">全部</div>
+      <div class="tab" data-filter="WON" onclick="filterTable('WON', this)">🏆 �?/div>
+      <div class="tab" data-filter="SOLD" onclick="filterTable('SOLD', this)">📌 卖出</div>
+      <div class="tab" data-filter="HOLDING" onclick="filterTable('HOLDING', this)">�?持仓</div>
+    </div>
+    <div style="overflow-x: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>市场</th>
+            <th>方向</th>
+            <th>状�?/th>
+            <th>买入时间</th>
+            <th>买入概率</th>
+            <th>赔率</th>
+            <th>成本</th>
+            <th>回收</th>
+            <th>盈亏</th>
+            <th>收益�?/th>
+            <th>持仓时长</th>
+          </tr>
+        </thead>
+        <tbody id="marketTable"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+let data = null;
+let dailyChart, pieChart, pnlChart;
+let currentFilter = 'all';
+let refreshInterval;
+
+async function refresh(manual = false) {
+  const btn = document.getElementById('refreshBtn');
+  if (manual) btn.classList.add('loading');
+
+  try {
+    const resp = await fetch('/api/data?refresh=' + manual);
+    data = await resp.json();
+    render(data);
+    document.getElementById('updateTime').textContent =
+      '更新�?' + new Date(data.lastUpdated).toLocaleTimeString('zh-CN', { hour12: false });
+  } catch (e) {
+    console.error('Refresh failed:', e);
+  }
+
+  if (manual) btn.classList.remove('loading');
+  document.getElementById('loading').style.display = 'none';
+}
+
+function render(d) {
+  if (!d || d.error) return;
+  const s = d.summary;
+
+  // KPI Cards
+  const pnlSign = s.tradingPnL >= 0 ? '+' : '';
+  const pnlClass = s.tradingPnL >= 0 ? 'green' : 'red';
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-label">交易净盈亏</div>
+      <div class="kpi-value ${pnlClass}">${pnlSign}$${s.tradingPnL.toFixed(2)}</div>
+      <div class="kpi-sub">${pnlSign}${s.tradingPnLPct.toFixed(1)}% ROI</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">已结算市�?/div>
+      <div class="kpi-value">${s.wonCount + s.soldCount} <span style="font-size:16px;color:var(--text-dim)">/ ${s.totalMarkets}</span></div>
+      <div class="kpi-sub">🏆 ${s.wonCount} �?&nbsp; 📌 ${s.soldCount} 卖出 &nbsp; �?${s.holdCount} 持仓</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">胜率</div>
+      <div class="kpi-value">${s.winRate.toFixed(0)}%</div>
+      <div class="kpi-sub">${s.wonCount} / ${s.wonCount + s.soldCount} 已结�?/div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">总投�?/ 总回�?/div>
+      <div class="kpi-value" style="font-size:20px">$${s.totalCost.toFixed(0)} <span style="color:var(--text-dim)">�?/span> $${s.totalRevenue.toFixed(0)}</div>
+      <div class="kpi-sub">资金周转�?${(s.totalCost / Math.max(s.totalCost, 1) * 100).toFixed(0)}%</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">账户价�?/div>
+      <div class="kpi-value" style="color:var(--blue)">$${s.accountValue ? s.accountValue.toFixed(2) : '�?}</div>
+      <div class="kpi-sub">${s.activePositions} 个活跃持�?/div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">平均买入概率</div>
+      <div class="kpi-value" style="color:var(--yellow)" id="avgProb">�?/div>
+      <div class="kpi-sub">均值越低赔率越�?/div>
+    </div>
+  `;
+
+  // Calculate avg implied probability from markets
+  const markets = d.markets || [];
+  const marketsWithBuy = markets.filter(m => m.avgBuyPrice > 0);
+  if (marketsWithBuy.length > 0) {
+    const avgProb = marketsWithBuy.reduce((s, m) => s + m.impliedProb, 0) / marketsWithBuy.length;
+    document.getElementById('avgProb').textContent = avgProb.toFixed(1) + '%';
+  }
+
+  // Daily P&L Chart
+  renderDailyChart(d.dailyPnL || []);
+  renderPieChart(s);
+  renderPnlChart(d.markets || []);
+  renderTable(d.markets || []);
+}
+
+function renderDailyChart(dailyData) {
+  const ctx = document.getElementById('dailyChart').getContext('2d');
+  const labels = dailyData.map(d => d.date.slice(5));
+  const outData = dailyData.map(d => -d.out);
+  const inData = dailyData.map(d => d.in);
+  let cumPnL = 0;
+  const cumData = dailyData.map(d => { cumPnL += d.net; return cumPnL; });
+
+  if (dailyChart) dailyChart.destroy();
+  dailyChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: '支出',
+          data: outData,
+          backgroundColor: 'rgba(239, 68, 68, 0.6)',
+          borderRadius: 4,
+          stack: 'flow',
+        },
+        {
+          label: '收入',
+          data: inData,
+          backgroundColor: 'rgba(16, 185, 129, 0.6)',
+          borderRadius: 4,
+          stack: 'flow',
+        },
+        {
+          label: '累计 P&L',
+          data: cumData,
+          type: 'line',
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 4,
+          pointBackgroundColor: '#3b82f6',
+          yAxisID: 'y',
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { color: '#64748b', usePointStyle: true, pointStyle: 'circle', padding: 16 } },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          grid: { color: 'rgba(30, 42, 69, 0.5)' },
+          ticks: { color: '#64748b' },
+        },
+        y: {
+          stacked: true,
+          grid: { color: 'rgba(30, 42, 69, 0.5)' },
+          ticks: { color: '#64748b', callback: v => '$' + v },
+        }
+      }
+    }
+  });
+}
+
+function renderPieChart(s) {
+  const ctx = document.getElementById('pieChart').getContext('2d');
+  if (pieChart) pieChart.destroy();
+  pieChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['🏆 �?, '📌 卖出', '�?持仓'],
+      datasets: [{
+        data: [s.wonCount, s.soldCount, s.holdCount],
+        backgroundColor: ['#10b981', '#3b82f6', '#f97316'],
+        borderWidth: 0,
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: '#64748b', usePointStyle: true, pointStyle: 'circle', padding: 16 }
+        }
+      }
+    }
+  });
+}
+
+function renderPnlChart(markets) {
+  const ctx = document.getElementById('pnlChart').getContext('2d');
+  const resolved = markets.filter(m => m.pnl !== null);
+  if (pnlChart) pnlChart.destroy();
+
+  pnlChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: resolved.map(m => m.title.length > 20 ? m.title.substring(0, 20) + '...' : m.title),
+      datasets: [{
+        label: '盈亏 ($)',
+        data: resolved.map(m => m.pnl),
+        backgroundColor: resolved.map(m => m.pnl >= 0 ? 'rgba(16, 185, 129, 0.7)' : 'rgba(239, 68, 68, 0.7)'),
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const m = resolved[ctx.dataIndex];
+              return `${m.pnl >= 0 ? '+' : ''}$${m.pnl.toFixed(2)} (${m.pnlPct >= 0 ? '+' : ''}${m.pnlPct.toFixed(1)}%) �?${m.outcome}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: '#64748b', maxRotation: 45, font: { size: 10 } },
+        },
+        y: {
+          grid: { color: 'rgba(30, 42, 69, 0.5)' },
+          ticks: { color: '#64748b', callback: v => (v >= 0 ? '+' : '') + '$' + v },
+        }
+      }
+    }
+  });
+}
+
+function renderTable(markets) {
+  const tbody = document.getElementById('marketTable');
+  const filtered = currentFilter === 'all' ? markets : markets.filter(m => m.status === currentFilter);
+
+  tbody.innerHTML = filtered.map(m => {
+    const statusClass = m.status.toLowerCase();
+    const statusIcon = m.status === 'WON' ? '🏆' : m.status === 'SOLD' ? '📌' : '�?;
+    const statusText = m.status === 'WON' ? '�? : m.status === 'SOLD' ? '卖出' : '持仓';
+    const pnlClass = m.pnl !== null ? (m.pnl >= 0 ? 'pnl-positive' : 'pnl-negative') : '';
+    const pnlStr = m.pnl !== null ? `${m.pnl >= 0 ? '+' : ''}$${m.pnl.toFixed(2)}` : '待结�?;
+    const pctStr = m.pnlPct !== null ? `${m.pnlPct >= 0 ? '+' : ''}${m.pnlPct.toFixed(1)}%` : '�?;
+    const probColor = m.impliedProb >= 90 ? 'var(--text-dim)' : m.impliedProb >= 80 ? 'var(--blue)' : m.impliedProb >= 70 ? 'var(--yellow)' : 'var(--orange)';
+    const buyTime = m.startTime ? new Date(m.startTime).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '�?;
+
+    return `<tr>
+      <td>${m.title}</td>
+      <td>${m.outcome}</td>
+      <td><span class="status-badge ${statusClass}">${statusIcon} ${statusText}</span></td>
+      <td style="color:var(--text-dim);font-size:12px;white-space:nowrap">${buyTime}</td>
+      <td style="color:${probColor};font-weight:600">${m.impliedProb}%</td>
+      <td style="color:var(--text-dim)">${m.impliedOdds !== null ? m.impliedOdds.toFixed(2) : '�?}</td>
+      <td>$${m.cost.toFixed(2)}</td>
+      <td>$${(m.sellRevenue + m.redeemRevenue).toFixed(2)}</td>
+      <td class="${pnlClass}" style="font-weight:600">${pnlStr}</td>
+      <td class="${pnlClass}">${pctStr}</td>
+      <td style="color:var(--text-dim)">${m.holdHours}h</td>
+    </tr>`;
+  }).join('');
+}
+
+function filterTable(filter, el) {
+  currentFilter = filter;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  if (data) renderTable(data.markets || []);
+}
+
+// Auto-refresh every 2 minutes
+refreshInterval = setInterval(() => refresh(false), 120000);
+
+// Initial load
+refresh(false);
+</script>
+</body>
+</html>

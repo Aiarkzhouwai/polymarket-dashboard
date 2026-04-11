@@ -1,0 +1,16 @@
+{
+  "name": "polymarket-dashboard",
+  "version": "1.0.0",
+  "description": "Polymarket wallet tracking dashboard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "undici": "^6.21.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
