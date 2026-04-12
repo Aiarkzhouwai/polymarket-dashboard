@@ -7,27 +7,18 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   :root {
-    --bg: #0a0e17;
-    --card: #131a2a;
-    --card-hover: #1a2340;
-    --border: #1e2a45;
-    --text: #e2e8f0;
-    --text-dim: #64748b;
-    --green: #10b981;
-    --green-bg: rgba(16, 185, 129, 0.1);
-    --red: #ef4444;
-    --red-bg: rgba(239, 68, 68, 0.1);
-    --blue: #3b82f6;
-    --blue-bg: rgba(59, 130, 246, 0.1);
-    --yellow: #f59e0b;
-    --orange: #f97316;
-    --orange-bg: rgba(249, 115, 22, 0.1);
-    --purple: #a78bfa;
+    --bg: #0a0e17; --card: #131a2a; --card-hover: #1a2340; --border: #1e2a45;
+    --text: #e2e8f0; --text-dim: #64748b;
+    --green: #10b981; --green-bg: rgba(16,185,129,0.1);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.1);
+    --blue: #3b82f6; --blue-bg: rgba(59,130,246,0.1);
+    --yellow: #f59e0b; --orange: #f97316; --orange-bg: rgba(249,115,22,0.1);
+    --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
-  .header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid var(--border); background: rgba(19,26,42,0.8); backdrop-filter: blur(10px); }
+  .header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid var(--border); background: rgba(19,26,42,0.8); backdrop-filter: blur(10px); flex-wrap: wrap; gap: 12px; }
   .header-left { display: flex; align-items: center; gap: 12px; }
   .logo { font-size: 28px; }
   .header-left h1 { font-size: 18px; font-weight: 700; }
@@ -41,6 +32,14 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+  /* Wallet Selector */
+  .wallet-bar { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+  .wallet-bar-label { font-size: 12px; color: var(--text-dim); margin-right: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .wallet-tab { padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; background: transparent; border: 1px solid transparent; color: var(--text-dim); transition: all 0.2s; white-space: nowrap; }
+  .wallet-tab:hover { color: var(--text); background: var(--card-hover); }
+  .wallet-tab.active { color: var(--text); background: var(--card-hover); border-color: var(--blue); font-weight: 600; }
+  .wallet-tab .wallet-pnl { margin-left: 6px; font-size: 11px; }
 
   .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
   .kpi-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; transition: all 0.2s; }
@@ -73,30 +72,34 @@
   .status-badge.won { background: var(--green-bg); color: var(--green); }
   .status-badge.sold { background: var(--blue-bg); color: var(--blue); }
   .status-badge.holding { background: var(--orange-bg); color: var(--orange); }
-  .status-badge.multi { background: rgba(167,139,250,0.1); color: var(--purple); font-size: 10px; margin-left: 4px; }
-
+  .status-badge.multi { background: var(--purple-bg); color: var(--purple); font-size: 10px; margin-left: 4px; }
   .pnl-positive { color: var(--green); }
   .pnl-negative { color: var(--red); }
   .wallet-addr { font-family: 'SF Mono', monospace; font-size: 12px; color: var(--text-dim); }
 
-  /* Expandable row */
+  /* Wallet overview cards in combined view */
+  .wallet-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .wallet-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; cursor: pointer; transition: all 0.2s; }
+  .wallet-card:hover { border-color: var(--blue); transform: translateY(-1px); }
+  .wallet-card-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .wallet-card-addr { font-size: 11px; color: var(--text-dim); font-family: monospace; margin-bottom: 8px; }
+  .wallet-card-pnl { font-size: 20px; font-weight: 700; }
+  .wallet-card-stats { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+  /* Expandable */
   .expand-toggle { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; }
   .expand-arrow { display: inline-block; transition: transform 0.2s; font-size: 10px; color: var(--text-dim); }
   .expand-arrow.open { transform: rotate(90deg); }
-
   .detail-row { display: none; }
   .detail-row.open { display: table-row; }
   .detail-cell { padding: 0 12px 12px 48px; background: rgba(10,14,23,0.5); }
-
   .detail-section { margin-bottom: 12px; }
   .detail-section-title { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
   .outcome-label { background: var(--card-hover); padding: 1px 6px; border-radius: 3px; font-size: 10px; color: var(--text); }
-
   .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 8px; }
   .detail-stat { font-size: 12px; }
   .detail-stat .label { color: var(--text-dim); font-size: 10px; }
   .detail-stat .val { font-weight: 600; font-variant-numeric: tabular-nums; }
-
   .trade-table { width: 100%; font-size: 11px; border-collapse: collapse; }
   .trade-table th { font-size: 10px; padding: 6px 8px; color: var(--text-dim); border-bottom: 1px solid var(--border); background: transparent; position: static; }
   .trade-table td { padding: 5px 8px; font-variant-numeric: tabular-nums; border-bottom: 1px solid rgba(30,42,69,0.5); }
@@ -118,10 +121,7 @@
 </head>
 <body>
 
-<div class="loading-overlay" id="loading">
-  <div class="spinner"></div>
-  <span>Loading...</span>
-</div>
+<div class="loading-overlay" id="loading"><div class="spinner"></div><span>Loading...</span></div>
 
 <div class="header">
   <div class="header-left">
@@ -129,65 +129,41 @@
     <div>
       <h1>Polymarket Dashboard</h1>
       <div class="subtitle">
-        <a href="https://polymarket.com/zh/@easyeasymoney?tab=positions" target="_blank" style="color:var(--blue);text-decoration:none" class="wallet-addr">@EasyEasyMoney</a>
+        <span id="walletCount" style="margin-left:4px"></span>
         <span id="updateTime" style="margin-left:12px"></span>
       </div>
     </div>
   </div>
   <div class="header-right">
     <span class="auto-badge">Auto-refresh 2min</span>
-    <button class="refresh-btn" id="refreshBtn" onclick="refresh(true)">
-      <span class="spin">&#128260;</span> Refresh
-    </button>
+    <button class="refresh-btn" id="refreshBtn" onclick="refresh(true)"><span class="spin">&#128260;</span> Refresh</button>
     <div class="status-dot" title="Connected"></div>
   </div>
 </div>
 
 <div class="container">
+  <div class="wallet-bar" id="walletBar"></div>
+  <div id="walletOverview" class="wallet-cards" style="display:none"></div>
   <div class="kpi-grid" id="kpiGrid"></div>
   <div class="charts-grid">
-    <div class="chart-card">
-      <h3>&#128200; Daily Cash Flow</h3>
-      <div class="chart-container"><canvas id="dailyChart"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <h3>&#128202; Market Status</h3>
-      <div class="chart-container"><canvas id="pieChart"></canvas></div>
-    </div>
+    <div class="chart-card"><h3>&#128200; Daily Cash Flow</h3><div class="chart-container"><canvas id="dailyChart"></canvas></div></div>
+    <div class="chart-card"><h3>&#128202; Market Status</h3><div class="chart-container"><canvas id="pieChart"></canvas></div></div>
   </div>
-  <div class="charts-grid" style="grid-template-columns: 1fr;">
-    <div class="chart-card">
-      <h3>&#128176; Per-Market P&L</h3>
-      <div class="chart-container"><canvas id="pnlChart"></canvas></div>
-    </div>
+  <div class="charts-grid" style="grid-template-columns:1fr;">
+    <div class="chart-card"><h3>&#128176; Per-Market P&L</h3><div class="chart-container"><canvas id="pnlChart"></canvas></div></div>
   </div>
   <div class="table-card">
     <h3>&#128203; Market Details <span style="font-weight:400;color:var(--text-dim);font-size:12px;margin-left:8px">Click row to expand trades</span></h3>
-    <div class="table-tabs">
+    <div class="table-tabs" id="statusTabs">
       <div class="tab active" data-filter="all" onclick="filterTable('all', this)">All</div>
       <div class="tab" data-filter="WON" onclick="filterTable('WON', this)">&#127942; Won</div>
       <div class="tab" data-filter="SOLD" onclick="filterTable('SOLD', this)">&#128204; Sold</div>
       <div class="tab" data-filter="HOLDING" onclick="filterTable('HOLDING', this)">&#9203; Open</div>
     </div>
-    <div style="overflow-x: auto;">
-      <table>
-        <thead>
-          <tr>
-            <th style="width:24px"></th>
-            <th>Market</th>
-            <th>Side</th>
-            <th>Status</th>
-            <th>Buy Time</th>
-            <th>Avg Prob</th>
-            <th>Cost</th>
-            <th>Return</th>
-            <th>P&L</th>
-            <th>ROI</th>
-            <th>Hold</th>
-          </tr>
-        </thead>
-        <tbody id="marketTable"></tbody>
-      </table>
+    <div style="overflow-x:auto;">
+      <table><thead><tr>
+        <th style="width:24px"></th><th>Market</th><th>Side</th><th>Status</th><th>Buy Time</th><th>Avg Prob</th><th>Cost</th><th>Return</th><th>P&L</th><th>ROI</th><th>Hold</th>
+      </tr></thead><tbody id="marketTable"></tbody></table>
     </div>
   </div>
 </div>
@@ -195,6 +171,7 @@
 <script>
 let data = null;
 let dailyChart, pieChart, pnlChart;
+let currentWallet = "combined"; // "combined" or wallet address
 let currentFilter = 'all';
 let expandedRows = new Set();
 
@@ -204,67 +181,227 @@ async function refresh(manual = false) {
   try {
     const resp = await fetch('/api/data?refresh=' + manual);
     data = await resp.json();
-    render(data);
-    document.getElementById('updateTime').textContent =
-      'Updated ' + new Date(data.lastUpdated).toLocaleTimeString('en-US', { hour12: false });
+    renderWalletBar();
+    renderCurrentView();
+    document.getElementById('updateTime').textContent = 'Updated ' + new Date(data.lastUpdated).toLocaleTimeString('en-US', { hour12: false });
   } catch (e) { console.error('Refresh failed:', e); }
   if (manual) btn.classList.remove('loading');
   document.getElementById('loading').style.display = 'none';
 }
 
-function render(d) {
-  if (!d || d.error) {
-    document.getElementById('loading').innerHTML = '<span style="color:#ef4444">Failed to load data. Check server logs.</span>';
-    return;
+function renderWalletBar() {
+  if (!data || data.error) return;
+  const bar = document.getElementById('walletBar');
+  const summaries = data.walletSummaries || [];
+
+  let html = '<span class="wallet-bar-label">&#128274; Wallets</span>';
+  // Combined tab
+  const c = data.combined.summary;
+  const cSign = c.tradingPnL >= 0 ? '+' : '';
+  const cColor = c.tradingPnL >= 0 ? 'var(--green)' : 'var(--red)';
+  html += `<div class="wallet-tab ${currentWallet === 'combined' ? 'active' : ''}" onclick="selectWallet('combined')">
+    &#128202; All <span class="wallet-pnl" style="color:${cColor}">${cSign}$${c.tradingPnL.toFixed(0)}</span>
+  </div>`;
+
+  for (const ws of summaries) {
+    const sign = ws.pnl >= 0 ? '+' : '';
+    const color = ws.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    html += `<div class="wallet-tab ${currentWallet === ws.wallet ? 'active' : ''}" onclick="selectWallet('${ws.wallet}')">
+      ${ws.displayName} <span class="wallet-pnl" style="color:${color}">${sign}$${ws.pnl.toFixed(0)}</span>
+    </div>`;
   }
-  const s = d.summary;
+  bar.innerHTML = html;
+}
+
+function selectWallet(wallet) {
+  currentWallet = wallet;
+  expandedRows.clear();
+  document.querySelectorAll('.wallet-tab').forEach(t => t.classList.remove('active'));
+  renderWalletBar();
+  renderCurrentView();
+}
+
+function renderCurrentView() {
+  if (!data || data.error) return;
+  if (currentWallet === 'combined') {
+    renderCombinedView();
+  } else {
+    renderSingleWalletView(currentWallet);
+  }
+}
+
+function renderCombinedView() {
+  const c = data.combined.summary;
+  const s = c;
   const pnlSign = s.tradingPnL >= 0 ? '+' : '';
   const pnlClass = s.tradingPnL >= 0 ? 'green' : 'red';
 
+  document.getElementById('walletOverview').style.display = 'grid';
+  // Wallet overview cards
+  const summaries = data.walletSummaries || [];
+  document.getElementById('walletOverview').innerHTML = summaries.map(ws => {
+    const sign = ws.pnl >= 0 ? '+' : '';
+    const color = ws.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    return `<div class="wallet-card" onclick="selectWallet('${ws.wallet}')">
+      <div class="wallet-card-name">${ws.displayName}</div>
+      <div class="wallet-card-addr">${ws.shortAddr}</div>
+      <div class="wallet-card-pnl" style="color:${color}">${sign}$${ws.pnl.toFixed(2)}</div>
+      <div class="wallet-card-stats">${ws.markets} markets | &#127942;${ws.wonCount} &#128204;${ws.soldCount} &#9203;${ws.holdCount} | WR ${ws.winRate.toFixed(0)}%</div>
+    </div>`;
+  }).join('');
+
   document.getElementById('kpiGrid').innerHTML = `
-    <div class="kpi-card">
-      <div class="kpi-label">Net P&L</div>
-      <div class="kpi-value ${pnlClass}">${pnlSign}$${s.tradingPnL.toFixed(2)}</div>
-      <div class="kpi-sub">${pnlSign}${s.tradingPnLPct.toFixed(1)}% ROI</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Settled Markets</div>
-      <div class="kpi-value">${s.wonCount + s.soldCount} <span style="font-size:16px;color:var(--text-dim)">/ ${s.totalMarkets}</span></div>
-      <div class="kpi-sub">&#127942; ${s.wonCount} Won &nbsp; &#128204; ${s.soldCount} Sold &nbsp; &#9203; ${s.holdCount} Open</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Win Rate</div>
-      <div class="kpi-value">${s.winRate.toFixed(0)}%</div>
-      <div class="kpi-sub">${s.wonCount} / ${s.wonCount + s.soldCount} settled</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Total In / Out</div>
-      <div class="kpi-value" style="font-size:20px">$${s.totalCost.toFixed(0)} <span style="color:var(--text-dim)">~&gt;</span> $${s.totalRevenue.toFixed(0)}</div>
-      <div class="kpi-sub">Gross turnover</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Account Value</div>
-      <div class="kpi-value" style="color:var(--blue)">$${s.accountValue ? s.accountValue.toFixed(2) : '-'}</div>
-      <div class="kpi-sub">${s.activePositions} active positions</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Avg Buy Prob</div>
-      <div class="kpi-value" style="color:var(--yellow)" id="avgProb">-</div>
-      <div class="kpi-sub">Lower = higher odds</div>
-    </div>
+    <div class="kpi-card"><div class="kpi-label">Combined P&L</div><div class="kpi-value ${pnlClass}">${pnlSign}$${s.tradingPnL.toFixed(2)}</div><div class="kpi-sub">${pnlSign}${s.tradingPnLPct.toFixed(1)}% ROI</div></div>
+    <div class="kpi-card"><div class="kpi-label">Wallets</div><div class="kpi-value">${s.walletCount}</div><div class="kpi-sub">${summaries.map(w=>w.displayName).join(', ')}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Total Markets</div><div class="kpi-value">${s.totalMarkets}</div><div class="kpi-sub">&#127942; ${s.wonCount} Won &#128204; ${s.soldCount} Sold &#9203; ${s.holdCount} Open</div></div>
+    <div class="kpi-card"><div class="kpi-label">Total In / Out</div><div class="kpi-value" style="font-size:20px">$${s.totalCost.toFixed(0)} <span style="color:var(--text-dim)">~&gt;</span> $${s.totalRevenue.toFixed(0)}</div><div class="kpi-sub">Gross turnover</div></div>
+    <div class="kpi-card"><div class="kpi-label">Win Rate</div><div class="kpi-value">${s.winRate.toFixed(0)}%</div><div class="kpi-sub">${s.wonCount} / ${s.wonCount + s.soldCount} settled</div></div>
   `;
 
-  const markets = d.markets || [];
-  const marketsWithBuy = markets.filter(m => m.avgBuyPrice > 0);
-  if (marketsWithBuy.length > 0) {
-    const avgProb = marketsWithBuy.reduce((sum, m) => sum + m.impliedProb, 0) / marketsWithBuy.length;
-    document.getElementById('avgProb').textContent = avgProb.toFixed(1) + '%';
+  renderDailyChart(data.combined.dailyPnL || []);
+  renderPieChart(s);
+  // Combined P&L chart: sum all wallets
+  const allMarkets = [];
+  for (const [addr, wd] of Object.entries(data.data || {})) {
+    if (wd.error) continue;
+    for (const m of wd.markets) {
+      if (m.pnl !== null) allMarkets.push({ ...m, wallet: wd.displayName || wd.shortAddr });
+    }
+  }
+  renderPnlChart(allMarkets);
+  renderCombinedTable(data.data || {});
+}
+
+function renderCombinedTable(walletData) {
+  const tbody = document.getElementById('marketTable');
+  let html = '';
+  let gi = 0;
+
+  for (const [addr, wd] of Object.entries(walletData)) {
+    if (wd.error) continue;
+    const wName = wd.displayName || wd.shortAddr;
+    const filtered = currentFilter === 'all' ? wd.markets : wd.markets.filter(m => m.status === currentFilter);
+    for (const m of filtered) {
+      const isOpen = expandedRows.has(gi);
+      html += buildMarketRow(m, gi, isOpen, wName);
+      html += buildDetailRow(m, gi, isOpen);
+      gi++;
+    }
+  }
+  tbody.innerHTML = html;
+}
+
+function renderSingleWalletView(wallet) {
+  const wd = (data.data || {})[wallet];
+  if (!wd || wd.error) {
+    document.getElementById('kpiGrid').innerHTML = `<div class="kpi-card"><div class="kpi-label">Error</div><div class="kpi-value" style="color:var(--red)">${wd?.error || 'Wallet not found'}</div></div>`;
+    document.getElementById('walletOverview').style.display = 'none';
+    document.getElementById('marketTable').innerHTML = '';
+    return;
+  }
+  document.getElementById('walletOverview').style.display = 'none';
+  const s = wd.summary;
+  const pnlSign = s.tradingPnL >= 0 ? '+' : '';
+  const pnlClass = s.tradingPnL >= 0 ? 'green' : 'red';
+  const marketsWithBuy = wd.markets.filter(m => m.avgBuyPrice > 0);
+
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">Net P&L</div><div class="kpi-value ${pnlClass}">${pnlSign}$${s.tradingPnL.toFixed(2)}</div><div class="kpi-sub">${pnlSign}${s.tradingPnLPct.toFixed(1)}% ROI</div></div>
+    <div class="kpi-card"><div class="kpi-label">Settled Markets</div><div class="kpi-value">${s.wonCount + s.soldCount} <span style="font-size:16px;color:var(--text-dim)">/ ${s.totalMarkets}</span></div><div class="kpi-sub">&#127942; ${s.wonCount} Won &#128204; ${s.soldCount} Sold &#9203; ${s.holdCount} Open</div></div>
+    <div class="kpi-card"><div class="kpi-label">Win Rate</div><div class="kpi-value">${s.winRate.toFixed(0)}%</div><div class="kpi-sub">${s.wonCount} / ${s.wonCount + s.soldCount} settled</div></div>
+    <div class="kpi-card"><div class="kpi-label">Total In / Out</div><div class="kpi-value" style="font-size:20px">$${s.totalCost.toFixed(0)} <span style="color:var(--text-dim)">~&gt;</span> $${s.totalRevenue.toFixed(0)}</div><div class="kpi-sub">Gross turnover</div></div>
+    <div class="kpi-card"><div class="kpi-label">Account Value</div><div class="kpi-value" style="color:var(--blue)">$${s.accountValue != null ? s.accountValue.toFixed(2) : '-'}</div><div class="kpi-sub">${s.activePositions} active positions</div></div>
+    <div class="kpi-card"><div class="kpi-label">Avg Buy Prob</div><div class="kpi-value" style="color:var(--yellow)">${marketsWithBuy.length > 0 ? (marketsWithBuy.reduce((sum, m) => sum + m.impliedProb, 0) / marketsWithBuy.length).toFixed(1) + '%' : '-'}</div><div class="kpi-sub">Lower = higher odds</div></div>
+  `;
+  renderDailyChart(wd.dailyPnL || []);
+  renderPieChart(s);
+  const resolved = wd.markets.filter(m => m.pnl !== null);
+  renderPnlChart(resolved);
+  renderTable(wd.markets);
+}
+
+function buildMarketRow(m, gi, isOpen, walletLabel) {
+  const statusClass = m.status.toLowerCase();
+  const statusIcon = m.status === 'WON' ? '&#127942;' : m.status === 'SOLD' ? '&#128204;' : '&#9203;';
+  const statusText = m.status === 'WON' ? 'Won' : m.status === 'SOLD' ? 'Sold' : 'Open';
+  const pnlClass = m.pnl !== null ? (m.pnl >= 0 ? 'pnl-positive' : 'pnl-negative') : '';
+  const pnlStr = m.pnl !== null ? (m.pnl >= 0 ? '+' : '') + '$' + m.pnl.toFixed(2) : 'Pending';
+  const pctStr = m.pnlPct !== null ? (m.pnlPct >= 0 ? '+' : '') + m.pnlPct.toFixed(1) + '%' : '-';
+  const buyTime = m.startTime ? new Date(m.startTime).toLocaleString('en-US', { timeZone: 'Asia/Shanghai', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '-';
+  const multiBadge = m.multiOutcome ? `<span class="status-badge multi">${m.outcomeCount} sides</span>` : '';
+  const wLabel = walletLabel ? `<span style="font-size:10px;color:var(--text-dim);margin-right:4px">${walletLabel}</span>` : '';
+
+  return `<tr onclick="toggleRow(${gi})" style="cursor:pointer">
+    <td><span class="expand-arrow ${isOpen ? 'open' : ''}">&#9654;</span></td>
+    <td><div class="expand-toggle">${wLabel}${m.title} ${multiBadge}</div></td>
+    <td>${m.outcome}</td>
+    <td><span class="status-badge ${statusClass}">${statusIcon} ${statusText}</span></td>
+    <td style="color:var(--text-dim);font-size:12px;white-space:nowrap">${buyTime}</td>
+    <td style="font-weight:600">${m.impliedProb}%</td>
+    <td>$${m.cost.toFixed(2)}</td>
+    <td>$${(m.sellRevenue + m.redeemRevenue).toFixed(2)}</td>
+    <td class="${pnlClass}" style="font-weight:600">${pnlStr}</td>
+    <td class="${pnlClass}">${pctStr}</td>
+    <td style="color:var(--text-dim)">${m.holdHours}h</td>
+  </tr>`;
+}
+
+function buildDetailRow(m, gi, isOpen) {
+  const trades = m.trades || [];
+  const breakdown = m.outcomeBreakdown || {};
+  const outcomes = Object.entries(breakdown);
+  let html = `<tr class="detail-row ${isOpen ? 'open' : ''}"><td colspan="11" class="detail-cell">`;
+
+  if (outcomes.length > 1) {
+    html += `<div class="detail-section"><div class="detail-section-title">&#128204; Outcome Breakdown</div><div class="detail-grid">`;
+    for (const [name, od] of outcomes) {
+      html += `<div class="detail-stat"><div class="label"><span class="outcome-label">${name}</span></div><div class="val" style="color:${od.net >= 0 ? 'var(--green)' : 'var(--red)'}">Cost $${od.buyCost.toFixed(0)} → Rev $${(od.sellRevenue + od.redeemRevenue).toFixed(0)}<br>Net ${od.net >= 0 ? '+' : ''}$${od.net.toFixed(2)}</div></div>`;
+    }
+    html += '</div></div>';
   }
 
-  renderDailyChart(d.dailyPnL || []);
-  renderPieChart(s);
-  renderPnlChart(markets);
-  renderTable(markets);
+  html += `<div class="detail-section"><div class="detail-section-title">&#128202; Summary</div><div class="detail-grid">
+    <div class="detail-stat"><div class="label">Buys</div><div class="val">${m.buyCount}</div></div>
+    <div class="detail-stat"><div class="label">Sells</div><div class="val">${m.sellCount}</div></div>
+    ${m.redeemCount > 0 ? `<div class="detail-stat"><div class="label">Redeems</div><div class="val">${m.redeemCount}</div></div>` : ''}
+    <div class="detail-stat"><div class="label">Total Cost</div><div class="val">$${m.cost.toFixed(2)}</div></div>
+    <div class="detail-stat"><div class="label">Sell Rev</div><div class="val">$${m.sellRevenue.toFixed(2)}</div></div>
+    ${m.redeemRevenue > 0 ? `<div class="detail-stat"><div class="label">Redeem Rev</div><div class="val" style="color:var(--blue)">$${m.redeemRevenue.toFixed(2)}</div></div>` : ''}
+    <div class="detail-stat"><div class="label">Avg Price</div><div class="val">${m.avgBuyPrice.toFixed(4)} (${m.impliedProb}%)</div></div>
+  </div></div>`;
+
+  if (trades.length > 0) {
+    html += `<div class="detail-section"><div class="detail-section-title">&#128203; All Trades (${trades.length})</div><table class="trade-table"><thead><tr><th>#</th><th>Type</th><th>Outcome</th><th>Size</th><th>Price</th><th>USDC</th><th>Time</th></tr></thead><tbody>`;
+    for (const t of trades) {
+      html += `<tr><td style="color:var(--text-dim)">${trades.indexOf(t)+1}</td><td><span class="trade-type ${t.type.toLowerCase()}">${t.type}</span></td><td>${t.outcome}</td><td>${t.size}</td><td>${t.price}</td><td style="color:${t.type==='BUY'?'var(--red)':'var(--green)'}">$${t.usdc}</td><td style="color:var(--text-dim);white-space:nowrap">${t.time}</td></tr>`;
+    }
+    html += '</tbody></table></div>';
+  }
+
+  html += '</td></tr>';
+  return html;
+}
+
+function toggleRow(idx) { expandedRows.has(idx) ? expandedRows.delete(idx) : expandedRows.add(idx); renderCurrentView(); }
+
+function renderTable(markets) {
+  const tbody = document.getElementById('marketTable');
+  const filtered = currentFilter === 'all' ? markets : markets.filter(m => m.status === currentFilter);
+  let html = '';
+  filtered.forEach((m, fi) => {
+    const gi = markets.indexOf(m);
+    const isOpen = expandedRows.has(gi);
+    html += buildMarketRow(m, gi, isOpen, null);
+    html += buildDetailRow(m, gi, isOpen);
+  });
+  tbody.innerHTML = html;
+}
+
+function filterTable(filter, el) {
+  currentFilter = filter;
+  document.querySelectorAll('#statusTabs .tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderCurrentView();
 }
 
 function renderDailyChart(dailyData) {
@@ -274,171 +411,32 @@ function renderDailyChart(dailyData) {
   const inData = dailyData.map(d => d.in);
   let cumPnL = 0;
   const cumData = dailyData.map(d => { cumPnL += d.net; return cumPnL; });
-
   if (dailyChart) dailyChart.destroy();
   dailyChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Spent', data: outData, backgroundColor: 'rgba(239,68,68,0.6)', borderRadius: 4, stack: 'flow' },
-        { label: 'Income', data: inData, backgroundColor: 'rgba(16,185,129,0.6)', borderRadius: 4, stack: 'flow' },
-        { label: 'Cumulative P&L', data: cumData, type: 'line', borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#3b82f6', yAxisID: 'y' }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'top', labels: { color: '#64748b', usePointStyle: true, pointStyle: 'circle', padding: 16 } } },
-      scales: {
-        x: { stacked: true, grid: { color: 'rgba(30,42,69,0.5)' }, ticks: { color: '#64748b' } },
-        y: { stacked: true, grid: { color: 'rgba(30,42,69,0.5)' }, ticks: { color: '#64748b', callback: v => '$' + v } },
-      }
-    }
+    type: 'bar', data: { labels, datasets: [
+      { label: 'Spent', data: outData, backgroundColor: 'rgba(239,68,68,0.6)', borderRadius: 4, stack: 'flow' },
+      { label: 'Income', data: inData, backgroundColor: 'rgba(16,185,129,0.6)', borderRadius: 4, stack: 'flow' },
+      { label: 'Cumulative P&L', data: cumData, type: 'line', borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#3b82f6' }
+    ]},
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { color: '#64748b', usePointStyle: true, pointStyle: 'circle', padding: 16 } } }, scales: { x: { stacked: true, grid: { color: 'rgba(30,42,69,0.5)' }, ticks: { color: '#64748b' } }, y: { stacked: true, grid: { color: 'rgba(30,42,69,0.5)' }, ticks: { color: '#64748b', callback: v => '$' + v } } } }
   });
 }
 
 function renderPieChart(s) {
   const ctx = document.getElementById('pieChart').getContext('2d');
   if (pieChart) pieChart.destroy();
-  pieChart = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: ['Won', 'Sold', 'Holding'],
-      datasets: [{ data: [s.wonCount, s.soldCount, s.holdCount], backgroundColor: ['#10b981', '#3b82f6', '#f97316'], borderWidth: 0, hoverOffset: 8 }]
-    },
-    options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'bottom', labels: { color: '#64748b', usePointStyle: true, pointStyle: 'circle', padding: 16 } } } }
-  });
+  pieChart = new Chart(ctx, { type: 'doughnut', data: { labels: ['Won','Sold','Holding'], datasets: [{ data: [s.wonCount, s.soldCount, s.holdCount], backgroundColor: ['#10b981','#3b82f6','#f97316'], borderWidth: 0, hoverOffset: 8 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'bottom', labels: { color: '#64748b', usePointStyle: true, pointStyle: 'circle', padding: 16 } } } } });
 }
 
 function renderPnlChart(markets) {
   const ctx = document.getElementById('pnlChart').getContext('2d');
   const resolved = markets.filter(m => m.pnl !== null);
   if (pnlChart) pnlChart.destroy();
+  const labelFn = ctx => { const m = resolved[ctx.dataIndex]; return m.title.length > 25 ? m.title.substring(0,25)+'...' : m.title; };
   pnlChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: resolved.map(m => m.title.length > 25 ? m.title.substring(0, 25) + '...' : m.title),
-      datasets: [{ label: 'P&L ($)', data: resolved.map(m => m.pnl), backgroundColor: resolved.map(m => m.pnl >= 0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)'), borderRadius: 4 }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => { const m = resolved[ctx.dataIndex]; return (m.pnl >= 0 ? '+' : '') + '$' + m.pnl.toFixed(2) + ' (' + (m.pnlPct >= 0 ? '+' : '') + m.pnlPct.toFixed(1) + '%)'; } } } },
-      scales: {
-        x: { grid: { display: false }, ticks: { color: '#64748b', maxRotation: 45, font: { size: 10 } } },
-        y: { grid: { color: 'rgba(30,42,69,0.5)' }, ticks: { color: '#64748b', callback: v => (v >= 0 ? '+' : '') + '$' + v } },
-      }
-    }
+    type: 'bar', data: { labels: resolved.map(m => m.title.length > 25 ? m.title.substring(0,25)+'...' : m.title), datasets: [{ label: 'P&L ($)', data: resolved.map(m => m.pnl), backgroundColor: resolved.map(m => m.pnl >= 0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)'), borderRadius: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => { const m = resolved[ctx.dataIndex]; return (m.pnl>=0?'+':'')+'$'+m.pnl.toFixed(2)+' ('+(m.pnlPct>=0?'+':'')+m.pnlPct.toFixed(1)+'%)'; } } } }, scales: { x: { grid: { display: false }, ticks: { color: '#64748b', maxRotation: 45, font: { size: 10 } } }, y: { grid: { color: 'rgba(30,42,69,0.5)' }, ticks: { color: '#64748b', callback: v => (v>=0?'+':'')+'$'+v } } } }
   });
-}
-
-function toggleRow(idx) {
-  if (expandedRows.has(idx)) { expandedRows.delete(idx); } else { expandedRows.add(idx); }
-  renderTable(data.markets || []);
-}
-
-function renderTable(markets) {
-  const tbody = document.getElementById('marketTable');
-  const filtered = currentFilter === 'all' ? markets : markets.filter(m => m.status === currentFilter);
-  let html = '';
-
-  filtered.forEach((m, fi) => {
-    const gi = markets.indexOf(m);
-    const isOpen = expandedRows.has(gi);
-    const statusClass = m.status.toLowerCase();
-    const statusIcon = m.status === 'WON' ? '&#127942;' : m.status === 'SOLD' ? '&#128204;' : '&#9203;';
-    const statusText = m.status === 'WON' ? 'Won' : m.status === 'SOLD' ? 'Sold' : 'Open';
-    const pnlClass = m.pnl !== null ? (m.pnl >= 0 ? 'pnl-positive' : 'pnl-negative') : '';
-    const pnlStr = m.pnl !== null ? (m.pnl >= 0 ? '+' : '') + '$' + m.pnl.toFixed(2) : 'Pending';
-    const pctStr = m.pnlPct !== null ? (m.pnlPct >= 0 ? '+' : '') + m.pnlPct.toFixed(1) + '%' : '-';
-    const buyTime = m.startTime ? new Date(m.startTime).toLocaleString('en-US', { timeZone: 'Asia/Shanghai', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '-';
-    const multiBadge = m.multiOutcome ? `<span class="status-badge multi">${m.outcomeCount} sides</span>` : '';
-    const trades = m.trades || [];
-    const breakdown = m.outcomeBreakdown || {};
-
-    html += `<tr onclick="toggleRow(${gi})" style="cursor:pointer">
-      <td><span class="expand-arrow ${isOpen ? 'open' : ''}">&#9654;</span></td>
-      <td><div class="expand-toggle">${m.title} ${multiBadge}</div></td>
-      <td>${m.outcome}</td>
-      <td><span class="status-badge ${statusClass}">${statusIcon} ${statusText}</span></td>
-      <td style="color:var(--text-dim);font-size:12px;white-space:nowrap">${buyTime}</td>
-      <td style="font-weight:600">${m.impliedProb}%</td>
-      <td>$${m.cost.toFixed(2)}</td>
-      <td>$${(m.sellRevenue + m.redeemRevenue).toFixed(2)}</td>
-      <td class="${pnlClass}" style="font-weight:600">${pnlStr}</td>
-      <td class="${pnlClass}">${pctStr}</td>
-      <td style="color:var(--text-dim)">${m.holdHours}h</td>
-    </tr>`;
-
-    // Detail row
-    html += `<tr class="detail-row ${isOpen ? 'open' : ''}"><td colspan="11" class="detail-cell">`;
-
-    // Outcome breakdown
-    const outcomes = Object.entries(breakdown);
-    if (outcomes.length > 1) {
-      html += `<div class="detail-section">
-        <div class="detail-section-title">&#128204; Outcome Breakdown</div>
-        <div class="detail-grid">
-          ${outcomes.map(([name, od]) => `
-            <div class="detail-stat">
-              <div class="label"><span class="outcome-label">${name}</span></div>
-              <div class="val" style="color:${od.net >= 0 ? 'var(--green)' : 'var(--red)'}">
-                Cost $${od.buyCost.toFixed(0)} &rarr; Rev $${(od.sellRevenue + od.redeemRevenue).toFixed(0)}
-                <br>Net ${od.net >= 0 ? '+' : ''}$${od.net.toFixed(2)}
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>`;
-    }
-
-    // Summary stats
-    html += `<div class="detail-section">
-      <div class="detail-section-title">&#128202; Summary</div>
-      <div class="detail-grid">
-        <div class="detail-stat"><div class="label">Total Buys</div><div class="val">${m.buyCount} trades</div></div>
-        <div class="detail-stat"><div class="label">Total Sells</div><div class="val">${m.sellCount} trades</div></div>
-        ${m.redeemCount > 0 ? `<div class="detail-stat"><div class="label">Redeems</div><div class="val">${m.redeemCount}</div></div>` : ''}
-        <div class="detail-stat"><div class="label">Total Buy Cost</div><div class="val">$${m.cost.toFixed(2)}</div></div>
-        <div class="detail-stat"><div class="label">Total Sell Rev</div><div class="val">$${m.sellRevenue.toFixed(2)}</div></div>
-        ${m.redeemRevenue > 0 ? `<div class="detail-stat"><div class="label">Redeem Rev</div><div class="val" style="color:var(--blue)">$${m.redeemRevenue.toFixed(2)}</div></div>` : ''}
-        <div class="detail-stat"><div class="label">Avg Buy Price</div><div class="val">${m.avgBuyPrice.toFixed(4)} (${m.impliedProb}%)</div></div>
-      </div>
-    </div>`;
-
-    // Trade list
-    if (trades.length > 0) {
-      html += `<div class="detail-section">
-        <div class="detail-section-title">&#128203; All Trades (${trades.length})</div>
-        <table class="trade-table">
-          <thead><tr><th>#</th><th>Type</th><th>Outcome</th><th>Size</th><th>Price</th><th>USDC</th><th>Time</th></tr></thead>
-          <tbody>
-            ${trades.map((t, i) => `
-              <tr>
-                <td style="color:var(--text-dim)">${i + 1}</td>
-                <td><span class="trade-type ${t.type.toLowerCase()}">${t.type}</span></td>
-                <td>${t.outcome}</td>
-                <td>${t.size}</td>
-                <td>${t.price}</td>
-                <td style="color:${t.type === 'BUY' ? 'var(--red)' : 'var(--green)'}">$${t.usdc}</td>
-                <td style="color:var(--text-dim);white-space:nowrap">${t.time}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>`;
-    }
-
-    html += `</td></tr>`;
-  });
-
-  tbody.innerHTML = html;
-}
-
-function filterTable(filter, el) {
-  currentFilter = filter;
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  if (el) el.classList.add('active');
-  if (data) renderTable(data.markets || []);
 }
 
 setInterval(() => refresh(false), 120000);
