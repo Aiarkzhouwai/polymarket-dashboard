@@ -1,4 +1,7 @@
 node_modules/
-dashboard_cache.json
+dashboard/
 *.json
 !package.json
+!package-lock.json
+.env
+notify_state.json
