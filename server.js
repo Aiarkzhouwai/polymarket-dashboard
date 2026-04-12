@@ -350,7 +350,6 @@ app.get("/api/health", (req, res) => {
 // ===== Trade Notification =====
 const WEBHOOK_URL = process.env.WEBHOOK_URL || "";
 const LOOKBACK_MINUTES = parseInt(process.env.LOOKBACK_MINUTES || "10");
-const FALLBACK_COUNT = parseInt(process.env.FALLBACK_COUNT || "5");
 const NOTIFY_INTERVAL_MS = parseInt(process.env.NOTIFY_INTERVAL_MS || "300000");
 const NOTIFY_STATE_FILE = path.join(DATA_DIR, "notify_state.json");
 
@@ -379,27 +378,40 @@ async function runNotification() {
 
       const now = Math.floor(Date.now() / 1000);
       const cutoff = now - LOOKBACK_MINUTES * 60;
-      const recent = activity
+      const trades = activity
         .filter(a => (a.type === "TRADE" || a.type === "REDEEM") && (a.timestamp || 0) >= cutoff)
         .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
-      let trades, mode;
-      if (recent.length === 0) {
-        const all = activity.filter(a => a.type === "TRADE" || a.type === "REDEEM").sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-        trades = all.slice(0, FALLBACK_COUNT);
-        mode = "fallback";
-      } else {
-        trades = recent;
-        mode = "recent";
-      }
-
       if (trades.length === 0) continue;
 
+      // Merge consecutive trades with same title + outcome + side + price
+      const merged = [];
       for (const t of trades) {
-        const type = t.type === "REDEEM" ? "赎回" : t.side === "BUY" ? "买入" : "卖出";
-        const emoji = t.type === "REDEEM" ? "🏆" : t.side === "BUY" ? "🟢" : "🔴";
-        const usdc = parseFloat(t.usdcSize || 0).toFixed(2);
-        allLines.push(`${emoji} [${label}] **${t.title || "?"}** · ${t.outcome || "?"}\n${type} ${parseFloat(t.size || 0).toFixed(1)}份 · $${usdc} · ${fmtTime(t.timestamp)}`);
+        const key = `${t.title}_${t.outcome}_${t.side || "REDEEM"}_${parseFloat(t.price || 0).toFixed(4)}`;
+        const last = merged[merged.length - 1];
+        if (last && last._mergeKey === key) {
+          last.size = (parseFloat(last.size) + parseFloat(t.size || 0)).toFixed(1);
+          last.usdc = (parseFloat(last.usdc) + parseFloat(t.usdcSize || 0)).toFixed(2);
+          last.count = (last.count || 1) + 1;
+        } else {
+          merged.push({
+            _mergeKey: key,
+            title: t.title, outcome: t.outcome,
+            side: t.side || "REDEEM", type: t.type,
+            size: parseFloat(t.size || 0).toFixed(1),
+            price: parseFloat(t.price || 0).toFixed(4),
+            usdc: parseFloat(t.usdcSize || 0).toFixed(2),
+            time: fmtTime(t.timestamp),
+            count: 1,
+          });
+        }
+      }
+
+      for (const m of merged) {
+        const type = m.type === "REDEEM" ? "赎回" : m.side === "BUY" ? "买入" : "卖出";
+        const emoji = m.type === "REDEEM" ? "🏆" : m.side === "BUY" ? "🟢" : "🔴";
+        const countStr = m.count > 1 ? ` ×${m.count}` : "";
+        allLines.push(`${emoji} [${label}] **${m.title || "?"}** · ${m.outcome || "?"}\n${type} ${m.size}份${countStr} · $${m.usdc} · ${m.time}`);
       }
     }
 
