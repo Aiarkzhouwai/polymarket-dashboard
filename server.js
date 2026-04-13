@@ -372,22 +372,20 @@ async function runNotification() {
       const shortAddr = wallet.slice(0, 6) + "..." + wallet.slice(-4);
       const alias = ALIASES[wallet] || null;
 
-      // Fetch recent activity for trades, and full history for holding calculations
-      const [recentActivity, fullActivity] = await Promise.all([
+      // Fetch recent activity for trades, and current positions for sell ratio calculation
+      const [recentActivity, positions] = await Promise.all([
         apiGet(`https://data-api.polymarket.com/activity?user=${wallet}&limit=50`).catch(() => []),
-        apiGet(`https://data-api.polymarket.com/activity?user=${wallet}&limit=500`).catch(() => []),
+        apiGet(`https://data-api.polymarket.com/positions?user=${wallet}&limit=500`).catch(() => []),
       ]);
-      const pseudonym = recentActivity.find(a => a.pseudonym)?.pseudonym || fullActivity.find(a => a.pseudonym)?.pseudonym;
+      const pseudonym = recentActivity.find(a => a.pseudonym)?.pseudonym;
       const label = alias || pseudonym || shortAddr;
 
-      // Build map: total buy size per conditionId+outcome (for sell ratio calculation)
-      const holdingMap = {};
-      if (Array.isArray(fullActivity)) {
-        for (const a of fullActivity) {
-          if (a.type === "TRADE" && a.side === "BUY" && a.conditionId && a.outcome) {
-            const key = `${a.conditionId}_${a.outcome}`;
-            holdingMap[key] = (holdingMap[key] || 0) + parseFloat(a.size || 0);
-          }
+      // Build map: current position size per title+outcome (positions API shows post-trade state)
+      const positionMap = {};
+      if (Array.isArray(positions)) {
+        for (const p of positions) {
+          const key = `${p.title}_${p.outcome}`;
+          positionMap[key] = parseFloat(p.size || p.amount || 0);
         }
       }
 
@@ -424,7 +422,6 @@ async function runNotification() {
             _mergeKey: key,
             title: t.title, outcome: t.outcome,
             side: t.side || "REDEEM", type: t.type,
-            conditionId: t.conditionId,
             size: parseFloat(t.size || 0).toFixed(1),
             unitCost: unitCost.toFixed(4),
             usdc: parseFloat(t.usdcSize || 0).toFixed(2),
@@ -441,13 +438,14 @@ async function runNotification() {
         const unitCostStr = `单价 $${m.unitCost}`;
         let line = `${emoji} [${label}] **${m.title || "?"}** · ${m.outcome || "?"}\n${type} ${m.size}份${countStr} · $${m.usdc} · ${unitCostStr} · ${m.time}`;
 
-        // For sells: show ratio of sold shares vs total original holdings
-        if (m.side === "SELL" && m.conditionId && m.outcome) {
-          const holdingKey = `${m.conditionId}_${m.outcome}`;
-          const totalHeld = holdingMap[holdingKey] || 0;
-          if (totalHeld > 0) {
-            const soldSize = parseFloat(m.size);
-            const ratio = (soldSize / totalHeld * 100).toFixed(1);
+        // For sells: show ratio of sold shares vs pre-sell holdings (current position + sold amount)
+        if (m.side === "SELL") {
+          const posKey = `${m.title}_${m.outcome}`;
+          const currentSize = positionMap[posKey] || 0;
+          const soldSize = parseFloat(m.size);
+          const preSellSize = currentSize + soldSize;
+          if (preSellSize > 0) {
+            const ratio = (soldSize / preSellSize * 100).toFixed(1);
             line += ` · 卖出${ratio}%`;
           }
         }
