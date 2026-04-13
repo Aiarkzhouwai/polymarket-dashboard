@@ -124,9 +124,13 @@ async function fetchWalletData(wallet) {
     const hasRedeem = totalRedeemRevenue > 0;
     const fullySold = totalSellSize >= totalBuySize * 0.99;
     let status, realizedPnL;
-    if (hasRedeem) { status = "WON"; realizedPnL = totalSellRevenue + totalRedeemRevenue - totalBuyCost; }
-    else if (fullySold) { status = "SOLD"; realizedPnL = totalSellRevenue - totalBuyCost; }
-    else { status = "HOLDING"; realizedPnL = null; }
+    if (hasRedeem) {
+      realizedPnL = totalSellRevenue + totalRedeemRevenue - totalBuyCost;
+      status = realizedPnL >= 0 ? "WON" : "LOST";
+    } else if (fullySold) {
+      realizedPnL = totalSellRevenue - totalBuyCost;
+      status = realizedPnL >= 0 ? "WON" : "LOST";
+    } else { status = "HOLDING"; realizedPnL = null; }
 
     const allActions = [...allBuys, ...allSells, ...allRedeems].sort((a, b) => a.timestamp - b.timestamp);
     const holdHours = allActions.length > 1 ? ((allActions[allActions.length - 1].timestamp - allActions[0].timestamp) / 3600) : 0;
@@ -188,14 +192,15 @@ async function fetchWalletData(wallet) {
     }
   }
 
-  const statusOrder = { WON: 0, SOLD: 1, SETTLED: 2, HOLDING: 3 };
+  const statusOrder = { WON: 0, LOST: 1, SOLD: 2, SETTLED: 3, HOLDING: 4 };
   marketResults.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
 
   const wonMarkets = marketResults.filter(r => r.status === "WON");
+  const lostMarkets = marketResults.filter(r => r.status === "LOST");
   const soldMarkets = marketResults.filter(r => r.status === "SOLD");
   const settledMarkets = marketResults.filter(r => r.status === "SETTLED");
   const holdMarkets = marketResults.filter(r => r.status === "HOLDING");
-  const resolvedMarkets = [...wonMarkets, ...soldMarkets, ...settledMarkets];
+  const resolvedMarkets = [...wonMarkets, ...lostMarkets, ...soldMarkets, ...settledMarkets];
 
   const totalCost = resolvedMarkets.reduce((s, r) => s + r.cost, 0);
   const totalRevenue = resolvedMarkets.reduce((s, r) => s + r.sellRevenue + r.redeemRevenue + (r.redeemableValue || 0), 0);
@@ -222,6 +227,7 @@ async function fetchWalletData(wallet) {
     summary: {
       totalMarkets: marketResults.length,
       wonCount: wonMarkets.length,
+      lostCount: lostMarkets.length,
       soldCount: soldMarkets.length,
       settledCount: settledMarkets.length,
       holdCount: holdMarkets.length,
@@ -264,14 +270,14 @@ async function fetchAllData() {
       console.log(`  → ${results[w].displayName}: ${results[w].summary.totalMarkets} markets`);
     } catch (err) {
       console.error(`  → Error: ${err.message}`);
-      results[w] = { wallet: w, shortAddr: w.slice(0, 6) + "..." + w.slice(-4), pseudonym: null, displayName: w.slice(0, 8) + "...", error: err.message, summary: { totalMarkets: 0, wonCount: 0, soldCount: 0, settledCount: 0, holdCount: 0, totalCost: 0, totalRevenue: 0, tradingPnL: 0, tradingPnLPct: 0, winRate: 0, accountValue: null, activePositions: 0 }, markets: [], positions: [], dailyPnL: [] };
+      results[w] = { wallet: w, shortAddr: w.slice(0, 6) + "..." + w.slice(-4), pseudonym: null, displayName: w.slice(0, 8) + "...", error: err.message, summary: { totalMarkets: 0, wonCount: 0, lostCount: 0, soldCount: 0, settledCount: 0, holdCount: 0, totalCost: 0, totalRevenue: 0, tradingPnL: 0, tradingPnLPct: 0, winRate: 0, accountValue: null, activePositions: 0 }, markets: [], positions: [], dailyPnL: [] };
     }
     // Small delay between wallets to avoid rate limiting
     if (i < WALLETS.length - 1) await new Promise(r => setTimeout(r, 500));
   }
 
   // Build combined summary
-  let combinedCost = 0, combinedRevenue = 0, combinedWon = 0, combinedSold = 0, combinedSettled = 0, combinedHold = 0, combinedMarkets = 0;
+  let combinedCost = 0, combinedRevenue = 0, combinedWon = 0, combinedLost = 0, combinedSold = 0, combinedSettled = 0, combinedHold = 0, combinedMarkets = 0;
   const combinedDaily = {};
   const walletSummaries = {};
 
@@ -281,6 +287,7 @@ async function fetchAllData() {
     combinedCost += s.totalCost;
     combinedRevenue += s.totalRevenue;
     combinedWon += s.wonCount;
+    combinedLost += s.lostCount;
     combinedSold += s.soldCount;
     combinedSettled += s.settledCount;
     combinedHold += s.holdCount;
@@ -297,6 +304,7 @@ async function fetchAllData() {
       revenue: s.totalRevenue,
       markets: s.totalMarkets,
       wonCount: s.wonCount,
+      lostCount: s.lostCount,
       soldCount: s.soldCount,
       settledCount: s.settledCount,
       holdCount: s.holdCount,
@@ -315,7 +323,7 @@ async function fetchAllData() {
   }
 
   const combinedPnL = combinedRevenue - combinedCost;
-  const resolvedCount = combinedWon + combinedSold + combinedSettled;
+  const resolvedCount = combinedWon + combinedLost + combinedSold + combinedSettled;
 
   const data = {
     lastUpdated: new Date().toISOString(),
@@ -325,6 +333,7 @@ async function fetchAllData() {
       summary: {
         totalMarkets: combinedMarkets,
         wonCount: combinedWon,
+        lostCount: combinedLost,
         soldCount: combinedSold,
         settledCount: combinedSettled,
         holdCount: combinedHold,
