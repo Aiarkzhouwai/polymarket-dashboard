@@ -270,7 +270,8 @@ function renderCombinedView() {
   `;
 
   renderDailyChart(data.combined.dailyPnL || []);
-  renderDailyPnlTable(data.combined.dailyPnL || []);
+  const allPositions = Object.values(data.data || {}).flatMap(wd => wd.positions || []);
+  renderDailyPnlTable(data.combined.dailyPnL || [], allPositions);
   renderPieChart(s);
   // Combined P&L chart: sum all wallets
   const allMarkets = [];
@@ -326,7 +327,7 @@ function renderSingleWalletView(wallet) {
     <div class="kpi-card"><div class="kpi-label">Avg Buy Prob</div><div class="kpi-value" style="color:var(--yellow)">${marketsWithBuy.length > 0 ? (marketsWithBuy.reduce((sum, m) => sum + m.impliedProb, 0) / marketsWithBuy.length).toFixed(1) + '%' : '-'}</div><div class="kpi-sub">Lower = higher odds</div></div>
   `;
   renderDailyChart(wd.dailyPnL || []);
-  renderDailyPnlTable(wd.dailyPnL || []);
+  renderDailyPnlTable(wd.dailyPnL || [], wd.positions || []);
   renderPieChart(s);
   const resolved = wd.markets.filter(m => m.pnl !== null);
   renderPnlChart(resolved);
@@ -469,9 +470,13 @@ function renderPieChart(s) {
   pieChart = new Chart(ctx, { type: 'doughnut', data: { labels: ['Won','Sold','Settled','Holding'], datasets: [{ data: [s.wonCount, s.soldCount, s.settledCount||0, s.holdCount], backgroundColor: ['#10b981','#3b82f6','#eab308','#f97316'], borderWidth: 0, hoverOffset: 8 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'bottom', labels: { color: '#64748b', usePointStyle: true, pointStyle: 'circle', padding: 16 } } } } });
 }
 
-function renderDailyPnlTable(dailyData) {
+function renderDailyPnlTable(dailyData, positions) {
   const tbody = document.getElementById('dailyPnlBody');
   if (!dailyData || dailyData.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-dim)">No data</td></tr>'; return; }
+
+  // Sum current position value from all open positions
+  const positionValue = (positions || []).reduce((s, p) => s + (p.currentValue || 0), 0);
+
   let cum = 0;
   let html = '';
   for (const d of [...dailyData].reverse()) {
@@ -489,6 +494,19 @@ function renderDailyPnlTable(dailyData) {
       <td style="color:var(--text-dim)">${d.trades}${d.redeems > 0 ? ' / ' + d.redeems + ' redeems' : ''}</td>
     </tr>`;
   }
+
+  // Summary row: add open positions value to get true total P&L
+  const totalPnl = cum + positionValue;
+  const totalColor = totalPnl >= 0 ? 'var(--green)' : 'var(--red)';
+  const totalSign = totalPnl >= 0 ? '+' : '';
+  html += `<tr style="border-top:2px solid var(--border)">
+    <td style="font-weight:700;white-space:nowrap">📊 Open Positions</td>
+    <td colspan="2" style="text-align:right;color:var(--blue)">$${positionValue.toFixed(2)}</td>
+    <td></td>
+    <td style="color:${totalColor};font-weight:700">${totalSign}$${totalPnl.toFixed(2)}</td>
+    <td style="color:var(--text-dim)">Total P&L</td>
+  </tr>`;
+
   tbody.innerHTML = html;
 }
 
