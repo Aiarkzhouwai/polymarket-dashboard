@@ -157,7 +157,7 @@
     <h3>&#128197; Daily P&L Summary</h3>
     <div style="overflow-x:auto">
       <table class="trade-table" id="dailyPnlTable" style="margin-top:8px">
-        <thead><tr><th>Date</th><th>Spent</th><th>Income</th><th>Net</th><th>Cumulative</th><th>Trades</th></tr></thead>
+        <thead><tr><th>Date</th><th>Cost</th><th>Return</th><th>Net</th><th>Cumulative</th><th>Trades</th></tr></thead>
         <tbody id="dailyPnlBody"></tbody>
       </table>
     </div>
@@ -449,15 +449,15 @@ function filterTable(filter, el) {
 function renderDailyChart(dailyData) {
   const ctx = document.getElementById('dailyChart').getContext('2d');
   const labels = dailyData.map(d => d.date.slice(5));
-  const outData = dailyData.map(d => -d.out);
-  const inData = dailyData.map(d => d.in);
+  const outData = dailyData.map(d => -d.cost);
+  const inData = dailyData.map(d => d.return);
   let cumPnL = 0;
   const cumData = dailyData.map(d => { cumPnL += d.net; return cumPnL; });
   if (dailyChart) dailyChart.destroy();
   dailyChart = new Chart(ctx, {
     type: 'bar', data: { labels, datasets: [
-      { label: 'Spent', data: outData, backgroundColor: 'rgba(239,68,68,0.6)', borderRadius: 4, stack: 'flow' },
-      { label: 'Income', data: inData, backgroundColor: 'rgba(16,185,129,0.6)', borderRadius: 4, stack: 'flow' },
+      { label: 'Cost', data: outData, backgroundColor: 'rgba(239,68,68,0.6)', borderRadius: 4, stack: 'flow' },
+      { label: 'Return', data: inData, backgroundColor: 'rgba(16,185,129,0.6)', borderRadius: 4, stack: 'flow' },
       { label: 'Cumulative P&L', data: cumData, type: 'line', borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#3b82f6' }
     ]},
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { color: '#64748b', usePointStyle: true, pointStyle: 'circle', padding: 16 } } }, scales: { x: { stacked: true, grid: { color: 'rgba(30,42,69,0.5)' }, ticks: { color: '#64748b' } }, y: { stacked: true, grid: { color: 'rgba(30,42,69,0.5)' }, ticks: { color: '#64748b', callback: v => '$' + v } } } }
@@ -477,20 +477,27 @@ function renderDailyPnlTable(dailyData, positions) {
   // Sum current position value from all open positions
   const positionValue = (positions || []).reduce((s, p) => s + (p.currentValue || 0), 0);
 
+  // Build rows with cumulative from earliest to latest, then reverse for display
+  const rows = [];
   let cum = 0;
-  let html = '';
-  for (const d of [...dailyData].reverse()) {
+  for (const d of dailyData) {
     cum += d.net;
+    rows.push({ date: d.date, cost: d.cost, return: d.return, net: d.net, cum, trades: d.trades, redeems: d.redeems });
+  }
+  rows.reverse(); // newest first
+
+  let html = '';
+  for (const d of rows) {
     const netColor = d.net >= 0 ? 'var(--green)' : 'var(--red)';
-    const cumColor = cum >= 0 ? 'var(--green)' : 'var(--red)';
+    const cumColor = d.cum >= 0 ? 'var(--green)' : 'var(--red)';
     const netSign = d.net >= 0 ? '+' : '';
-    const cumSign = cum >= 0 ? '+' : '';
+    const cumSign = d.cum >= 0 ? '+' : '';
     html += `<tr>
       <td style="white-space:nowrap">${d.date}</td>
-      <td style="color:var(--red)">$${d.out.toFixed(2)}</td>
-      <td style="color:var(--green)">$${d.in.toFixed(2)}</td>
+      <td style="color:var(--red)">$${d.cost.toFixed(2)}</td>
+      <td style="color:var(--green)">$${d.return.toFixed(2)}</td>
       <td style="color:${netColor};font-weight:600">${netSign}$${d.net.toFixed(2)}</td>
-      <td style="color:${cumColor};font-weight:600">${cumSign}$${cum.toFixed(2)}</td>
+      <td style="color:${cumColor};font-weight:600">${cumSign}$${d.cum.toFixed(2)}</td>
       <td style="color:var(--text-dim)">${d.trades}${d.redeems > 0 ? ' / ' + d.redeems + ' redeems' : ''}</td>
     </tr>`;
   }
