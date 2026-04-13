@@ -201,14 +201,17 @@ async function fetchWalletData(wallet) {
   const totalRevenue = resolvedMarkets.reduce((s, r) => s + r.sellRevenue + r.redeemRevenue + (r.redeemableValue || 0), 0);
   const tradingPnL = totalRevenue - totalCost;
 
-  // Daily P&L
+  // Daily P&L — uses size * price like market Cost/Return
   const dailyPnL = {};
   for (const a of sortedActivity) {
     const date = new Date((a.timestamp || 0) * 1000).toISOString().split("T")[0];
-    if (!dailyPnL[date]) dailyPnL[date] = { out: 0, in: 0, trades: 0, redeems: 0 };
-    if (a.type === "TRADE" && a.side === "BUY") { dailyPnL[date].out += parseFloat(a.usdcSize); dailyPnL[date].trades++; }
-    else if (a.type === "TRADE" && a.side === "SELL") { dailyPnL[date].in += parseFloat(a.usdcSize); dailyPnL[date].trades++; }
-    else if (a.type === "REDEEM") { dailyPnL[date].in += parseFloat(a.usdcSize); dailyPnL[date].redeems++; }
+    if (!dailyPnL[date]) dailyPnL[date] = { cost: 0, return: 0, trades: 0, redeems: 0 };
+    const sz = parseFloat(a.size || 0);
+    const px = parseFloat(a.price || 0);
+    const amount = sz * px;
+    if (a.type === "TRADE" && a.side === "BUY") { dailyPnL[date].cost += amount; dailyPnL[date].trades++; }
+    else if (a.type === "TRADE" && a.side === "SELL") { dailyPnL[date].return += amount; dailyPnL[date].trades++; }
+    else if (a.type === "REDEEM") { dailyPnL[date].return += amount; dailyPnL[date].redeems++; }
   }
 
   return {
@@ -242,7 +245,7 @@ async function fetchWalletData(wallet) {
       currentValue: parseFloat(p.currentValue || 0),
     })),
     dailyPnL: Object.entries(dailyPnL).map(([date, d]) => ({
-      date, out: d.out, in: d.in, net: d.in - d.out, trades: d.trades, redeems: d.redeems,
+      date, cost: d.cost, return: d.return, net: d.return - d.cost, trades: d.trades, redeems: d.redeems,
     })).sort((a, b) => a.date.localeCompare(b.date)),
   };
 }
@@ -304,8 +307,8 @@ async function fetchAllData() {
     // Merge daily P&L
     for (const d of wd.dailyPnL) {
       if (!combinedDaily[d.date]) combinedDaily[d.date] = { out: 0, in: 0, trades: 0, redeems: 0 };
-      combinedDaily[d.date].out += d.out;
-      combinedDaily[d.date].in += d.in;
+      combinedDaily[d.date].cost += d.cost;
+      combinedDaily[d.date].return += d.return;
       combinedDaily[d.date].trades += d.trades;
       combinedDaily[d.date].redeems += d.redeems;
     }
@@ -333,7 +336,7 @@ async function fetchAllData() {
         walletCount: WALLETS.length,
       },
       dailyPnL: Object.entries(combinedDaily).map(([date, d]) => ({
-        date, out: d.out, in: d.in, net: d.in - d.out, trades: d.trades, redeems: d.redeems,
+        date, cost: d.cost, return: d.return, net: d.return - d.cost, trades: d.trades, redeems: d.redeems,
       })).sort((a, b) => a.date.localeCompare(b.date)),
     },
     data: results, // per-wallet full data, keyed by address
