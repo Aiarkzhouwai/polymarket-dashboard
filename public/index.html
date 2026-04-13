@@ -146,6 +146,7 @@
   <div class="wallet-bar" id="walletBar"></div>
   <div id="walletOverview" class="wallet-cards" style="display:none"></div>
   <div class="kpi-grid" id="kpiGrid"></div>
+  <div id="walletDetailSection">
   <div class="charts-grid">
     <div class="chart-card"><h3>&#128200; Daily Cash Flow</h3><div class="chart-container"><canvas id="dailyChart"></canvas></div></div>
     <div class="chart-card"><h3>&#128202; Market Status</h3><div class="chart-container"><canvas id="pieChart"></canvas></div></div>
@@ -176,6 +177,7 @@
         <th style="width:24px"></th><th>Market</th><th>Side</th><th>Status</th><th>Buy Time</th><th>Avg Prob</th><th>Cost</th><th>Return</th><th>P&L</th><th>ROI</th><th>Hold</th>
       </tr></thead><tbody id="marketTable"></tbody></table>
     </div>
+  </div>
   </div>
 </div>
 
@@ -269,11 +271,8 @@ function renderCombinedView() {
     <div class="kpi-card"><div class="kpi-label">Win Rate</div><div class="kpi-value">${s.winRate.toFixed(0)}%</div><div class="kpi-sub">${s.wonCount} / ${s.wonCount + s.lostCount + s.soldCount} settled</div></div>
   `;
 
-  // Hide charts and table in combined view, only show in single wallet view
-  document.querySelector('.charts-grid').style.display = 'none';
-  document.querySelector('.charts-grid:last-of-type').style.display = 'none';
-  document.querySelector('.chart-card:last-of-type').style.display = 'none';
-  document.querySelectorAll('.table-card').forEach(el => el.style.display = 'none');
+  // Hide detail section in combined view
+  document.getElementById('walletDetailSection').style.display = 'none';
   renderCombinedTable(data.data || {});
 }
 
@@ -298,10 +297,8 @@ function renderCombinedTable(walletData) {
 
 function renderSingleWalletView(wallet) {
   const wd = (data.data || {})[wallet];
-  // Show charts and table (hidden in combined view)
-  document.querySelectorAll('.charts-grid').forEach(el => el.style.display = '');
-  document.querySelectorAll('.chart-card').forEach(el => el.style.display = '');
-  document.querySelectorAll('.table-card').forEach(el => el.style.display = '');
+  // Show detail section (hidden in combined view)
+  document.getElementById('walletDetailSection').style.display = '';
   if (!wd || wd.error) {
     document.getElementById('kpiGrid').innerHTML = `<div class="kpi-card"><div class="kpi-label">Error</div><div class="kpi-value" style="color:var(--red)">${wd?.error || 'Wallet not found'}</div></div>`;
     document.getElementById('walletOverview').style.display = 'none';
