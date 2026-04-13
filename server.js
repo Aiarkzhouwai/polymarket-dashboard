@@ -160,19 +160,46 @@ async function fetchWalletData(wallet) {
     });
   }
 
-  const statusOrder = { WON: 0, SOLD: 1, HOLDING: 2 };
+  const posArray = Array.isArray(positions) ? positions : [];
+
+  // Cross-reference with positions: settle HOLDING markets that have redeemable positions
+  const redeemablePosMap = {};
+  for (const p of posArray) {
+    if (p.redeemable) {
+      redeemablePosMap[`${p.title}_${p.outcome}`] = parseFloat(p.currentValue || 0);
+    }
+  }
+
+  for (const mr of marketResults) {
+    if (mr.status !== "HOLDING") continue;
+
+    let totalRedeemableValue = 0;
+    let matched = false;
+    for (const ok of Object.keys(mr.outcomeBreakdown)) {
+      const val = redeemablePosMap[`${mr.title}_${ok}`];
+      if (val !== undefined) { matched = true; totalRedeemableValue += val; }
+    }
+
+    if (matched) {
+      mr.status = "SETTLED";
+      mr.redeemableValue = totalRedeemableValue;
+      mr.pnl = parseFloat((mr.sellRevenue + mr.redeemRevenue + totalRedeemableValue - mr.cost).toFixed(2));
+      mr.pnlPct = mr.cost > 0 ? parseFloat(((mr.pnl / mr.cost) * 100).toFixed(1)) : null;
+    }
+  }
+
+  const statusOrder = { WON: 0, SOLD: 1, SETTLED: 2, HOLDING: 3 };
   marketResults.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
 
   const wonMarkets = marketResults.filter(r => r.status === "WON");
   const soldMarkets = marketResults.filter(r => r.status === "SOLD");
+  const settledMarkets = marketResults.filter(r => r.status === "SETTLED");
   const holdMarkets = marketResults.filter(r => r.status === "HOLDING");
-  const resolvedMarkets = [...wonMarkets, ...soldMarkets];
+  const resolvedMarkets = [...wonMarkets, ...soldMarkets, ...settledMarkets];
 
   const totalCost = resolvedMarkets.reduce((s, r) => s + r.cost, 0);
-  const totalRevenue = resolvedMarkets.reduce((s, r) => s + r.sellRevenue + r.redeemRevenue, 0);
+  const totalRevenue = resolvedMarkets.reduce((s, r) => s + r.sellRevenue + r.redeemRevenue + (r.redeemableValue || 0), 0);
   const tradingPnL = totalRevenue - totalCost;
-
-  const posArray = Array.isArray(positions) ? positions : [];
 
   // Daily P&L
   const dailyPnL = {};
@@ -193,6 +220,7 @@ async function fetchWalletData(wallet) {
       totalMarkets: marketResults.length,
       wonCount: wonMarkets.length,
       soldCount: soldMarkets.length,
+      settledCount: settledMarkets.length,
       holdCount: holdMarkets.length,
       totalCost,
       totalRevenue,
@@ -233,14 +261,14 @@ async function fetchAllData() {
       console.log(`  → ${results[w].displayName}: ${results[w].summary.totalMarkets} markets`);
     } catch (err) {
       console.error(`  → Error: ${err.message}`);
-      results[w] = { wallet: w, shortAddr: w.slice(0, 6) + "..." + w.slice(-4), pseudonym: null, displayName: w.slice(0, 8) + "...", error: err.message, summary: { totalMarkets: 0, wonCount: 0, soldCount: 0, holdCount: 0, totalCost: 0, totalRevenue: 0, tradingPnL: 0, tradingPnLPct: 0, winRate: 0, accountValue: null, activePositions: 0 }, markets: [], positions: [], dailyPnL: [] };
+      results[w] = { wallet: w, shortAddr: w.slice(0, 6) + "..." + w.slice(-4), pseudonym: null, displayName: w.slice(0, 8) + "...", error: err.message, summary: { totalMarkets: 0, wonCount: 0, soldCount: 0, settledCount: 0, holdCount: 0, totalCost: 0, totalRevenue: 0, tradingPnL: 0, tradingPnLPct: 0, winRate: 0, accountValue: null, activePositions: 0 }, markets: [], positions: [], dailyPnL: [] };
     }
     // Small delay between wallets to avoid rate limiting
     if (i < WALLETS.length - 1) await new Promise(r => setTimeout(r, 500));
   }
 
   // Build combined summary
-  let combinedCost = 0, combinedRevenue = 0, combinedWon = 0, combinedSold = 0, combinedHold = 0, combinedMarkets = 0;
+  let combinedCost = 0, combinedRevenue = 0, combinedWon = 0, combinedSold = 0, combinedSettled = 0, combinedHold = 0, combinedMarkets = 0;
   const combinedDaily = {};
   const walletSummaries = {};
 
@@ -251,6 +279,7 @@ async function fetchAllData() {
     combinedRevenue += s.totalRevenue;
     combinedWon += s.wonCount;
     combinedSold += s.soldCount;
+    combinedSettled += s.settledCount;
     combinedHold += s.holdCount;
     combinedMarkets += s.totalMarkets;
 
@@ -266,6 +295,7 @@ async function fetchAllData() {
       markets: s.totalMarkets,
       wonCount: s.wonCount,
       soldCount: s.soldCount,
+      settledCount: s.settledCount,
       holdCount: s.holdCount,
       winRate: s.winRate,
       activePositions: s.activePositions,
@@ -282,7 +312,7 @@ async function fetchAllData() {
   }
 
   const combinedPnL = combinedRevenue - combinedCost;
-  const resolvedCount = combinedWon + combinedSold;
+  const resolvedCount = combinedWon + combinedSold + combinedSettled;
 
   const data = {
     lastUpdated: new Date().toISOString(),
@@ -293,6 +323,7 @@ async function fetchAllData() {
         totalMarkets: combinedMarkets,
         wonCount: combinedWon,
         soldCount: combinedSold,
+        settledCount: combinedSettled,
         holdCount: combinedHold,
         totalCost: combinedCost,
         totalRevenue: combinedRevenue,
