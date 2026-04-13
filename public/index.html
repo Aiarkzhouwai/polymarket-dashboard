@@ -12,7 +12,7 @@
     --green: #10b981; --green-bg: rgba(16,185,129,0.1);
     --red: #ef4444; --red-bg: rgba(239,68,68,0.1);
     --blue: #3b82f6; --blue-bg: rgba(59,130,246,0.1);
-    --yellow: #f59e0b; --orange: #f97316; --orange-bg: rgba(249,115,22,0.1);
+    --yellow: #f59e0b; --yellow-bg: rgba(245,158,11,0.1); --orange: #f97316; --orange-bg: rgba(249,115,22,0.1);
     --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -72,6 +72,7 @@
   .status-badge.won { background: var(--green-bg); color: var(--green); }
   .status-badge.sold { background: var(--blue-bg); color: var(--blue); }
   .status-badge.holding { background: var(--orange-bg); color: var(--orange); }
+  .status-badge.settled { background: var(--yellow-bg); color: var(--yellow); }
   .status-badge.multi { background: var(--purple-bg); color: var(--purple); font-size: 10px; margin-left: 4px; }
   .pnl-positive { color: var(--green); }
   .pnl-negative { color: var(--red); }
@@ -159,6 +160,7 @@
       <div class="tab" data-filter="WON" onclick="filterTable('WON', this)">&#127942; Won</div>
       <div class="tab" data-filter="SOLD" onclick="filterTable('SOLD', this)">&#128204; Sold</div>
       <div class="tab" data-filter="HOLDING" onclick="filterTable('HOLDING', this)">&#9203; Open</div>
+      <div class="tab" data-filter="SETTLED" onclick="filterTable('SETTLED', this)">&#9898; Settled</div>
     </div>
     <div style="overflow-x:auto;">
       <table><thead><tr>
@@ -246,16 +248,16 @@ function renderCombinedView() {
       <div class="wallet-card-name">${ws.displayName}</div>
       <div class="wallet-card-addr">${ws.shortAddr}</div>
       <div class="wallet-card-pnl" style="color:${color}">${sign}$${ws.pnl.toFixed(2)}</div>
-      <div class="wallet-card-stats">${ws.markets} markets | &#127942;${ws.wonCount} &#128204;${ws.soldCount} &#9203;${ws.holdCount} | WR ${ws.winRate.toFixed(0)}%</div>
+      <div class="wallet-card-stats">${ws.markets} markets | &#127942;${ws.wonCount} &#128204;${ws.soldCount} &#9898;${ws.settledCount||0} &#9203;${ws.holdCount} | WR ${ws.winRate.toFixed(0)}%</div>
     </div>`;
   }).join('');
 
   document.getElementById('kpiGrid').innerHTML = `
     <div class="kpi-card"><div class="kpi-label">Combined P&L</div><div class="kpi-value ${pnlClass}">${pnlSign}$${s.tradingPnL.toFixed(2)}</div><div class="kpi-sub">${pnlSign}${s.tradingPnLPct.toFixed(1)}% ROI</div></div>
     <div class="kpi-card"><div class="kpi-label">Wallets</div><div class="kpi-value">${s.walletCount}</div><div class="kpi-sub">${summaries.map(w=>w.displayName).join(', ')}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Total Markets</div><div class="kpi-value">${s.totalMarkets}</div><div class="kpi-sub">&#127942; ${s.wonCount} Won &#128204; ${s.soldCount} Sold &#9203; ${s.holdCount} Open</div></div>
+    <div class="kpi-card"><div class="kpi-label">Total Markets</div><div class="kpi-value">${s.totalMarkets}</div><div class="kpi-sub">&#127942; ${s.wonCount} Won &#128204; ${s.soldCount} Sold &#9898; ${s.settledCount} Settled &#9203; ${s.holdCount} Open</div></div>
     <div class="kpi-card"><div class="kpi-label">Total In / Out</div><div class="kpi-value" style="font-size:20px">$${s.totalCost.toFixed(0)} <span style="color:var(--text-dim)">~&gt;</span> $${s.totalRevenue.toFixed(0)}</div><div class="kpi-sub">Gross turnover</div></div>
-    <div class="kpi-card"><div class="kpi-label">Win Rate</div><div class="kpi-value">${s.winRate.toFixed(0)}%</div><div class="kpi-sub">${s.wonCount} / ${s.wonCount + s.soldCount} settled</div></div>
+    <div class="kpi-card"><div class="kpi-label">Win Rate</div><div class="kpi-value">${s.winRate.toFixed(0)}%</div><div class="kpi-sub">${s.wonCount} / ${s.wonCount + s.soldCount + (s.settledCount||0)} settled</div></div>
   `;
 
   renderDailyChart(data.combined.dailyPnL || []);
@@ -307,8 +309,8 @@ function renderSingleWalletView(wallet) {
 
   document.getElementById('kpiGrid').innerHTML = `
     <div class="kpi-card"><div class="kpi-label">Net P&L</div><div class="kpi-value ${pnlClass}">${pnlSign}$${s.tradingPnL.toFixed(2)}</div><div class="kpi-sub">${pnlSign}${s.tradingPnLPct.toFixed(1)}% ROI</div></div>
-    <div class="kpi-card"><div class="kpi-label">Settled Markets</div><div class="kpi-value">${s.wonCount + s.soldCount} <span style="font-size:16px;color:var(--text-dim)">/ ${s.totalMarkets}</span></div><div class="kpi-sub">&#127942; ${s.wonCount} Won &#128204; ${s.soldCount} Sold &#9203; ${s.holdCount} Open</div></div>
-    <div class="kpi-card"><div class="kpi-label">Win Rate</div><div class="kpi-value">${s.winRate.toFixed(0)}%</div><div class="kpi-sub">${s.wonCount} / ${s.wonCount + s.soldCount} settled</div></div>
+    <div class="kpi-card"><div class="kpi-label">Settled Markets</div><div class="kpi-value">${s.wonCount + s.soldCount + (s.settledCount||0)} <span style="font-size:16px;color:var(--text-dim)">/ ${s.totalMarkets}</span></div><div class="kpi-sub">&#127942; ${s.wonCount} Won &#128204; ${s.soldCount} Sold &#9898; ${s.settledCount||0} Settled &#9203; ${s.holdCount} Open</div></div>
+    <div class="kpi-card"><div class="kpi-label">Win Rate</div><div class="kpi-value">${s.winRate.toFixed(0)}%</div><div class="kpi-sub">${s.wonCount} / ${s.wonCount + s.soldCount + (s.settledCount||0)} settled</div></div>
     <div class="kpi-card"><div class="kpi-label">Total In / Out</div><div class="kpi-value" style="font-size:20px">$${s.totalCost.toFixed(0)} <span style="color:var(--text-dim)">~&gt;</span> $${s.totalRevenue.toFixed(0)}</div><div class="kpi-sub">Gross turnover</div></div>
     <div class="kpi-card"><div class="kpi-label">Account Value</div><div class="kpi-value" style="color:var(--blue)">$${s.accountValue != null ? s.accountValue.toFixed(2) : '-'}</div><div class="kpi-sub">${s.activePositions} active positions</div></div>
     <div class="kpi-card"><div class="kpi-label">Avg Buy Prob</div><div class="kpi-value" style="color:var(--yellow)">${marketsWithBuy.length > 0 ? (marketsWithBuy.reduce((sum, m) => sum + m.impliedProb, 0) / marketsWithBuy.length).toFixed(1) + '%' : '-'}</div><div class="kpi-sub">Lower = higher odds</div></div>
@@ -322,8 +324,8 @@ function renderSingleWalletView(wallet) {
 
 function buildMarketRow(m, gi, isOpen, walletLabel) {
   const statusClass = m.status.toLowerCase();
-  const statusIcon = m.status === 'WON' ? '&#127942;' : m.status === 'SOLD' ? '&#128204;' : '&#9203;';
-  const statusText = m.status === 'WON' ? 'Won' : m.status === 'SOLD' ? 'Sold' : 'Open';
+  const statusIcon = m.status === 'WON' ? '&#127942;' : m.status === 'SOLD' ? '&#128204;' : m.status === 'SETTLED' ? '&#9898;' : '&#9203;';
+  const statusText = m.status === 'WON' ? 'Won' : m.status === 'SOLD' ? 'Sold' : m.status === 'SETTLED' ? 'Settled' : 'Open';
   const pnlClass = m.pnl !== null ? (m.pnl >= 0 ? 'pnl-positive' : 'pnl-negative') : '';
   const pnlStr = m.pnl !== null ? (m.pnl >= 0 ? '+' : '') + '$' + m.pnl.toFixed(2) : 'Pending';
   const pctStr = m.pnlPct !== null ? (m.pnlPct >= 0 ? '+' : '') + m.pnlPct.toFixed(1) + '%' : '-';
@@ -425,7 +427,7 @@ function renderDailyChart(dailyData) {
 function renderPieChart(s) {
   const ctx = document.getElementById('pieChart').getContext('2d');
   if (pieChart) pieChart.destroy();
-  pieChart = new Chart(ctx, { type: 'doughnut', data: { labels: ['Won','Sold','Holding'], datasets: [{ data: [s.wonCount, s.soldCount, s.holdCount], backgroundColor: ['#10b981','#3b82f6','#f97316'], borderWidth: 0, hoverOffset: 8 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'bottom', labels: { color: '#64748b', usePointStyle: true, pointStyle: 'circle', padding: 16 } } } } });
+  pieChart = new Chart(ctx, { type: 'doughnut', data: { labels: ['Won','Sold','Settled','Holding'], datasets: [{ data: [s.wonCount, s.soldCount, s.settledCount||0, s.holdCount], backgroundColor: ['#10b981','#3b82f6','#eab308','#f97316'], borderWidth: 0, hoverOffset: 8 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'bottom', labels: { color: '#64748b', usePointStyle: true, pointStyle: 'circle', padding: 16 } } } } });
 }
 
 function renderPnlChart(markets) {
