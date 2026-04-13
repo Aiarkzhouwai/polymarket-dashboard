@@ -201,10 +201,10 @@ async function fetchWalletData(wallet) {
   const totalRevenue = resolvedMarkets.reduce((s, r) => s + r.sellRevenue + r.redeemRevenue + (r.redeemableValue || 0), 0);
   const tradingPnL = totalRevenue - totalCost;
 
-  // Daily P&L — uses size * price like market Cost/Return
+  // Daily P&L — uses size * price like market Cost/Return, dates in Asia/Shanghai
   const dailyPnL = {};
   for (const a of sortedActivity) {
-    const date = new Date((a.timestamp || 0) * 1000).toISOString().split("T")[0];
+    const date = new Date((a.timestamp || 0) * 1000).toLocaleDateString("sv-SE", { timeZone: "Asia/Shanghai" });
     if (!dailyPnL[date]) dailyPnL[date] = { cost: 0, return: 0, trades: 0, redeems: 0 };
     const sz = parseFloat(a.size || 0);
     const px = parseFloat(a.price || 0);
