@@ -153,6 +153,15 @@
   <div class="charts-grid" style="grid-template-columns:1fr;">
     <div class="chart-card"><h3>&#128176; Per-Market P&L</h3><div class="chart-container"><canvas id="pnlChart"></canvas></div></div>
   </div>
+  <div class="chart-card">
+    <h3>&#128197; Daily P&L Summary</h3>
+    <div style="overflow-x:auto">
+      <table class="trade-table" id="dailyPnlTable" style="margin-top:8px">
+        <thead><tr><th>Date</th><th>Spent</th><th>Income</th><th>Net</th><th>Cumulative</th><th>Trades</th></tr></thead>
+        <tbody id="dailyPnlBody"></tbody>
+      </table>
+    </div>
+  </div>
   <div class="table-card">
     <h3>&#128203; Market Details <span style="font-weight:400;color:var(--text-dim);font-size:12px;margin-left:8px">Click row to expand trades</span></h3>
     <div class="table-tabs" id="statusTabs">
@@ -261,6 +270,7 @@ function renderCombinedView() {
   `;
 
   renderDailyChart(data.combined.dailyPnL || []);
+  renderDailyPnlTable(data.combined.dailyPnL || []);
   renderPieChart(s);
   // Combined P&L chart: sum all wallets
   const allMarkets = [];
@@ -316,6 +326,7 @@ function renderSingleWalletView(wallet) {
     <div class="kpi-card"><div class="kpi-label">Avg Buy Prob</div><div class="kpi-value" style="color:var(--yellow)">${marketsWithBuy.length > 0 ? (marketsWithBuy.reduce((sum, m) => sum + m.impliedProb, 0) / marketsWithBuy.length).toFixed(1) + '%' : '-'}</div><div class="kpi-sub">Lower = higher odds</div></div>
   `;
   renderDailyChart(wd.dailyPnL || []);
+  renderDailyPnlTable(wd.dailyPnL || []);
   renderPieChart(s);
   const resolved = wd.markets.filter(m => m.pnl !== null);
   renderPnlChart(resolved);
@@ -373,9 +384,37 @@ function buildDetailRow(m, gi, isOpen) {
   </div></div>`;
 
   if (trades.length > 0) {
-    html += `<div class="detail-section"><div class="detail-section-title">&#128203; All Trades (${trades.length})</div><table class="trade-table"><thead><tr><th>#</th><th>Type</th><th>Outcome</th><th>Size</th><th>Price</th><th>USDC</th><th>Time</th></tr></thead><tbody>`;
+    // Merge consecutive trades with same type + outcome + price
+    const mergedTrades = [];
     for (const t of trades) {
-      html += `<tr><td style="color:var(--text-dim)">${trades.indexOf(t)+1}</td><td><span class="trade-type ${t.type.toLowerCase()}">${t.type}</span></td><td>${t.outcome}</td><td>${t.size}</td><td>${t.price}</td><td style="color:${t.type==='BUY'?'var(--red)':'var(--green)'}">$${t.usdc}</td><td style="color:var(--text-dim);white-space:nowrap">${t.time}</td></tr>`;
+      const key = `${t.type}_${t.outcome}_${t.price}`;
+      const last = mergedTrades[mergedTrades.length - 1];
+      if (last && last._mergeKey === key) {
+        last.size = (parseFloat(last.size) + parseFloat(t.size)).toFixed(2);
+        last.usdc = (parseFloat(last.usdc) + parseFloat(t.usdc)).toFixed(2);
+        last.count++;
+        last.endTime = t.time;
+        if (t.timestamp > last.endTimestamp) last.endTimestamp = t.timestamp;
+      } else {
+        mergedTrades.push({
+          _mergeKey: key, type: t.type, outcome: t.outcome,
+          size: t.size, price: t.price, usdc: t.usdc,
+          time: t.time, timestamp: t.timestamp,
+          endTime: t.time, endTimestamp: t.timestamp,
+          count: 1,
+        });
+      }
+    }
+    const tradeCount = trades.length;
+    const mergedCount = mergedTrades.length;
+    const label = tradeCount !== mergedCount ? `(${mergedCount} merged from ${tradeCount})` : `(${tradeCount})`;
+    html += `<div class="detail-section"><div class="detail-section-title">&#128203; All Trades ${label}</div><table class="trade-table"><thead><tr><th>#</th><th>Type</th><th>Outcome</th><th>Size</th><th>Price</th><th>USDC</th><th>Time</th></tr></thead><tbody>`;
+    for (let i = 0; i < mergedTrades.length; i++) {
+      const t = mergedTrades[i];
+      const multiLabel = t.count > 1 ? ` <span style="color:var(--text-dim);font-size:10px">×${t.count}</span>` : '';
+      const timeStr = t.count > 1 && t.endTime !== t.time
+        ? `${t.time} ~ ${t.endTime}` : t.time;
+      html += `<tr><td style="color:var(--text-dim)">${i+1}</td><td><span class="trade-type ${t.type.toLowerCase()}">${t.type}</span>${multiLabel}</td><td>${t.outcome}</td><td>${t.size}</td><td>${t.price}</td><td style="color:${t.type==='BUY'?'var(--red)':'var(--green)'}">$${t.usdc}</td><td style="color:var(--text-dim);white-space:nowrap">${timeStr}</td></tr>`;
     }
     html += '</tbody></table></div>';
   }
@@ -428,6 +467,29 @@ function renderPieChart(s) {
   const ctx = document.getElementById('pieChart').getContext('2d');
   if (pieChart) pieChart.destroy();
   pieChart = new Chart(ctx, { type: 'doughnut', data: { labels: ['Won','Sold','Settled','Holding'], datasets: [{ data: [s.wonCount, s.soldCount, s.settledCount||0, s.holdCount], backgroundColor: ['#10b981','#3b82f6','#eab308','#f97316'], borderWidth: 0, hoverOffset: 8 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'bottom', labels: { color: '#64748b', usePointStyle: true, pointStyle: 'circle', padding: 16 } } } } });
+}
+
+function renderDailyPnlTable(dailyData) {
+  const tbody = document.getElementById('dailyPnlBody');
+  if (!dailyData || dailyData.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-dim)">No data</td></tr>'; return; }
+  let cum = 0;
+  let html = '';
+  for (const d of [...dailyData].reverse()) {
+    cum += d.net;
+    const netColor = d.net >= 0 ? 'var(--green)' : 'var(--red)';
+    const cumColor = cum >= 0 ? 'var(--green)' : 'var(--red)';
+    const netSign = d.net >= 0 ? '+' : '';
+    const cumSign = cum >= 0 ? '+' : '';
+    html += `<tr>
+      <td style="white-space:nowrap">${d.date}</td>
+      <td style="color:var(--red)">$${d.out.toFixed(2)}</td>
+      <td style="color:var(--green)">$${d.in.toFixed(2)}</td>
+      <td style="color:${netColor};font-weight:600">${netSign}$${d.net.toFixed(2)}</td>
+      <td style="color:${cumColor};font-weight:600">${cumSign}$${cum.toFixed(2)}</td>
+      <td style="color:var(--text-dim)">${d.trades}${d.redeems > 0 ? ' / ' + d.redeems + ' redeems' : ''}</td>
+    </tr>`;
+  }
+  tbody.innerHTML = html;
 }
 
 function renderPnlChart(markets) {
