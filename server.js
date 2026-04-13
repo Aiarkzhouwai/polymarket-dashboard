@@ -374,7 +374,7 @@ async function runNotification() {
 
       // Fetch recent activity for trades, and current positions for sell ratio calculation
       const [recentActivity, positions] = await Promise.all([
-        apiGet(`https://data-api.polymarket.com/activity?user=${wallet}&limit=50`).catch(() => []),
+        apiGet(`https://data-api.polymarket.com/activity?user=${wallet}&limit=200`).catch(() => []),
         apiGet(`https://data-api.polymarket.com/positions?user=${wallet}&limit=500`).catch(() => []),
       ]);
       const pseudonym = recentActivity.find(a => a.pseudonym)?.pseudonym;
