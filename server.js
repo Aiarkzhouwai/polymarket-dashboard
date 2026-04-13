@@ -372,34 +372,61 @@ async function runNotification() {
       const shortAddr = wallet.slice(0, 6) + "..." + wallet.slice(-4);
       const alias = ALIASES[wallet] || null;
 
-      const activity = await apiGet(`https://data-api.polymarket.com/activity?user=${wallet}&limit=50`).catch(() => []);
-      const pseudonym = activity.find(a => a.pseudonym)?.pseudonym;
+      // Fetch recent activity for trades, and full history for holding calculations
+      const [recentActivity, fullActivity] = await Promise.all([
+        apiGet(`https://data-api.polymarket.com/activity?user=${wallet}&limit=50`).catch(() => []),
+        apiGet(`https://data-api.polymarket.com/activity?user=${wallet}&limit=500`).catch(() => []),
+      ]);
+      const pseudonym = recentActivity.find(a => a.pseudonym)?.pseudonym || fullActivity.find(a => a.pseudonym)?.pseudonym;
       const label = alias || pseudonym || shortAddr;
+
+      // Build map: total buy size per conditionId+outcome (for sell ratio calculation)
+      const holdingMap = {};
+      if (Array.isArray(fullActivity)) {
+        for (const a of fullActivity) {
+          if (a.type === "TRADE" && a.side === "BUY" && a.conditionId && a.outcome) {
+            const key = `${a.conditionId}_${a.outcome}`;
+            holdingMap[key] = (holdingMap[key] || 0) + parseFloat(a.size || 0);
+          }
+        }
+      }
 
       const now = Math.floor(Date.now() / 1000);
       const cutoff = now - LOOKBACK_MINUTES * 60;
-      const trades = activity
+      const trades = (Array.isArray(recentActivity) ? recentActivity : [])
         .filter(a => (a.type === "TRADE" || a.type === "REDEEM") && (a.timestamp || 0) >= cutoff)
         .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
       if (trades.length === 0) continue;
 
-      // Merge consecutive trades with same title + outcome + side + price
+      // Merge consecutive trades with same title + outcome + side + unitCost (rounded to 2 decimals, diff < 0.01)
       const merged = [];
       for (const t of trades) {
-        const key = `${t.title}_${t.outcome}_${t.side || "REDEEM"}_${parseFloat(t.price || 0).toFixed(4)}`;
+        const unitCost = parseFloat(t.size || 0) > 0
+          ? parseFloat(t.usdcSize || 0) / parseFloat(t.size || 0)
+          : 0;
+        const unitCostKey = unitCost.toFixed(2);
+        const key = `${t.title}_${t.outcome}_${t.side || "REDEEM"}_${unitCostKey}`;
         const last = merged[merged.length - 1];
         if (last && last._mergeKey === key) {
-          last.size = (parseFloat(last.size) + parseFloat(t.size || 0)).toFixed(1);
-          last.usdc = (parseFloat(last.usdc) + parseFloat(t.usdcSize || 0)).toFixed(2);
+          const oldSize = parseFloat(last.size);
+          const oldUsdc = parseFloat(last.usdc);
+          const addSize = parseFloat(t.size || 0);
+          const addUsdc = parseFloat(t.usdcSize || 0);
+          const newSize = oldSize + addSize;
+          const newUsdc = oldUsdc + addUsdc;
+          last.size = newSize.toFixed(1);
+          last.usdc = newUsdc.toFixed(2);
+          last.unitCost = newSize > 0 ? (newUsdc / newSize).toFixed(4) : "0.0000";
           last.count = (last.count || 1) + 1;
         } else {
           merged.push({
             _mergeKey: key,
             title: t.title, outcome: t.outcome,
             side: t.side || "REDEEM", type: t.type,
+            conditionId: t.conditionId,
             size: parseFloat(t.size || 0).toFixed(1),
-            price: parseFloat(t.price || 0).toFixed(4),
+            unitCost: unitCost.toFixed(4),
             usdc: parseFloat(t.usdcSize || 0).toFixed(2),
             time: fmtTime(t.timestamp),
             count: 1,
@@ -411,7 +438,21 @@ async function runNotification() {
         const type = m.type === "REDEEM" ? "赎回" : m.side === "BUY" ? "买入" : "卖出";
         const emoji = m.type === "REDEEM" ? "🏆" : m.side === "BUY" ? "🟢" : "🔴";
         const countStr = m.count > 1 ? ` ×${m.count}` : "";
-        allLines.push(`${emoji} [${label}] **${m.title || "?"}** · ${m.outcome || "?"}\n${type} ${m.size}份${countStr} · $${m.usdc} · ${m.time}`);
+        const unitCostStr = `单价 $${m.unitCost}`;
+        let line = `${emoji} [${label}] **${m.title || "?"}** · ${m.outcome || "?"}\n${type} ${m.size}份${countStr} · $${m.usdc} · ${unitCostStr} · ${m.time}`;
+
+        // For sells: show ratio of sold shares vs total original holdings
+        if (m.side === "SELL" && m.conditionId && m.outcome) {
+          const holdingKey = `${m.conditionId}_${m.outcome}`;
+          const totalHeld = holdingMap[holdingKey] || 0;
+          if (totalHeld > 0) {
+            const soldSize = parseFloat(m.size);
+            const ratio = (soldSize / totalHeld * 100).toFixed(1);
+            line += ` · 卖出${ratio}%`;
+          }
+        }
+
+        allLines.push(line);
       }
     }
 
