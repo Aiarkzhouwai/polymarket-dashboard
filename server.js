@@ -474,7 +474,9 @@ function summarizeMarket(market) {
     const closedBought = outcome.closedPositions.reduce((sum, position) => {
       return sum + toNumber(position.totalBought);
     }, 0);
-    const bought = Math.max(buyCostFromTrades, currentBought + closedBought);
+    const bought = buyCostFromTrades > 0
+      ? buyCostFromTrades
+      : currentBought + closedBought;
 
     const currentValue = outcome.currentPositions.reduce((sum, position) => {
       return sum + toNumber(position.currentValue);
