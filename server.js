@@ -14,7 +14,15 @@ const POSITIONS_PAGE_LIMIT = 500;
 const POSITIONS_MAX_OFFSET = 10000;
 const CLOSED_PAGE_LIMIT = 50;
 const CLOSED_MAX_OFFSET = 5000;
-const POLYGON_RPC_URL = process.env.POLYGON_RPC_URL || "https://polygon-rpc.com";
+const POLYGON_RPC_URLS = (
+  process.env.POLYGON_RPC_URLS
+  || process.env.POLYGON_RPC_URL
+  || [
+    "https://polygon-rpc.com",
+    "https://polygon-bor-rpc.publicnode.com",
+    "https://1rpc.io/matic",
+  ].join(",")
+).split(",").map(url => url.trim()).filter(Boolean);
 
 const POLYGON_USDC = {
   symbol: "USDC",
@@ -140,28 +148,38 @@ async function apiGet(url) {
 }
 
 async function rpcCall(method, params) {
-  const resp = await fetch(POLYGON_RPC_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method,
-      params,
-    }),
-    signal: AbortSignal.timeout(20000),
-  });
+  let lastError = null;
 
-  if (!resp.ok) {
-    throw new Error(`RPC ${resp.status}: ${method}`);
+  for (const rpcUrl of POLYGON_RPC_URLS) {
+    try {
+      const resp = await fetch(rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method,
+          params,
+        }),
+        signal: AbortSignal.timeout(20000),
+      });
+
+      if (!resp.ok) {
+        throw new Error(`RPC ${resp.status}: ${rpcUrl}`);
+      }
+
+      const payload = await resp.json();
+      if (payload.error) {
+        throw new Error(`RPC error: ${payload.error.message || rpcUrl}`);
+      }
+
+      return payload.result;
+    } catch (err) {
+      lastError = err;
+    }
   }
 
-  const payload = await resp.json();
-  if (payload.error) {
-    throw new Error(`RPC error: ${payload.error.message || method}`);
-  }
-
-  return payload.result;
+  throw lastError || new Error(`RPC failed: ${method}`);
 }
 
 function encodeBalanceOf(wallet) {
@@ -179,25 +197,48 @@ function formatTokenAmount(rawHex, decimals) {
 }
 
 async function fetchPolygonStablecoinBalances(wallet) {
-  const [usdcRaw, usdceRaw] = await Promise.all([
-    rpcCall("eth_call", [{
-      to: POLYGON_USDC.address,
-      data: encodeBalanceOf(wallet),
-    }, "latest"]).catch(() => "0x0"),
-    rpcCall("eth_call", [{
-      to: POLYGON_USDCE.address,
-      data: encodeBalanceOf(wallet),
-    }, "latest"]).catch(() => "0x0"),
-  ]);
+  const profile = await apiGet(`https://gamma-api.polymarket.com/public-profile?address=${wallet}`).catch(() => null);
+  const candidateAddresses = [...new Set([
+    wallet,
+    profile?.proxyWallet || null,
+  ].filter(Boolean).map(address => address.toLowerCase()))];
 
-  const usdc = formatTokenAmount(usdcRaw, POLYGON_USDC.decimals);
-  const usdce = formatTokenAmount(usdceRaw, POLYGON_USDCE.decimals);
-
-  return {
-    usdc: round(usdc, 2),
-    usdce: round(usdce, 2),
-    total: round(usdc + usdce, 2),
+  let best = {
+    address: wallet.toLowerCase(),
+    source: "wallet",
+    usdc: 0,
+    usdce: 0,
+    total: 0,
   };
+
+  for (const address of candidateAddresses) {
+    const [usdcRaw, usdceRaw] = await Promise.all([
+      rpcCall("eth_call", [{
+        to: POLYGON_USDC.address,
+        data: encodeBalanceOf(address),
+      }, "latest"]).catch(() => "0x0"),
+      rpcCall("eth_call", [{
+        to: POLYGON_USDCE.address,
+        data: encodeBalanceOf(address),
+      }, "latest"]).catch(() => "0x0"),
+    ]);
+
+    const usdc = formatTokenAmount(usdcRaw, POLYGON_USDC.decimals);
+    const usdce = formatTokenAmount(usdceRaw, POLYGON_USDCE.decimals);
+    const total = usdc + usdce;
+
+    if (total > best.total) {
+      best = {
+        address,
+        source: profile?.proxyWallet && profile.proxyWallet.toLowerCase() === address ? "proxyWallet" : "wallet",
+        usdc: round(usdc, 2),
+        usdce: round(usdce, 2),
+        total: round(total, 2),
+      };
+    }
+  }
+
+  return best;
 }
 
 async function fetchPaginated(pathname, baseParams, limit, maxOffset) {
@@ -635,6 +676,8 @@ async function fetchWalletData(wallet) {
     ).catch(() => []),
     apiGet(buildDataApiUrl("/value", { user: wallet })).catch(() => []),
     fetchPolygonStablecoinBalances(wallet).catch(() => ({
+      address: wallet.toLowerCase(),
+      source: "wallet",
       usdc: 0,
       usdce: 0,
       total: 0,
@@ -852,6 +895,8 @@ async function fetchWalletData(wallet) {
       walletUsdc: stablecoinBalances.usdc,
       walletUsdce: stablecoinBalances.usdce,
       walletStablecoinTotal: stablecoinBalances.total,
+      walletStablecoinAddress: stablecoinBalances.address,
+      walletStablecoinSource: stablecoinBalances.source,
       activePositions: posArray.filter(position => !position.redeemable).length,
       today: {
         date: todaySummary.date,
@@ -932,6 +977,11 @@ async function fetchAllData() {
           openPositionValue: 0,
           claimableValue: 0,
           openCostBasis: 0,
+          walletUsdc: 0,
+          walletUsdce: 0,
+          walletStablecoinTotal: 0,
+          walletStablecoinAddress: wallet,
+          walletStablecoinSource: "wallet",
           activePositions: 0,
           today: {
             date: currentShanghaiDate(),
@@ -1030,6 +1080,8 @@ async function fetchAllData() {
       walletUsdc: summary.walletUsdc,
       walletUsdce: summary.walletUsdce,
       walletStablecoinTotal: summary.walletStablecoinTotal,
+      walletStablecoinAddress: summary.walletStablecoinAddress,
+      walletStablecoinSource: summary.walletStablecoinSource,
     });
 
     for (const day of walletData.dailyPnL) {
