@@ -332,7 +332,7 @@ function renderCombinedView() {
       <div class="wallet-card-stats">${wallet.markets} markets · WR ${wallet.winRate.toFixed(1)}% · Today ${formatSignedUsd(wallet.todayNet)}</div>
       <div class="wallet-card-stats">&#127942; ${wallet.wonCount} Won · &#128165; ${wallet.lostCount} Lost · &#128204; ${wallet.soldCount} Sold · &#9203; ${wallet.holdCount} Open</div>
       <div class="wallet-card-stats">Polygon stablecoins ${formatUsd(wallet.walletStablecoinTotal)} · USDC ${formatUsd(wallet.walletUsdc)} · USDC.e ${formatUsd(wallet.walletUsdce)}</div>
-      <div class="wallet-card-stats">Balance source: ${wallet.walletStablecoinSource === "proxyWallet" ? "proxy wallet" : "wallet"} · ${wallet.walletStablecoinAddress}</div>
+      <div class="wallet-card-stats">Balance source: ${wallet.walletStablecoinSource === "proxyWallet" ? "proxy wallet" : "wallet"}</div>
     </div>`;
   }).join("");
 
