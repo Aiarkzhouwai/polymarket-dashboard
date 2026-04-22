@@ -14,6 +14,18 @@ const POSITIONS_PAGE_LIMIT = 500;
 const POSITIONS_MAX_OFFSET = 10000;
 const CLOSED_PAGE_LIMIT = 50;
 const CLOSED_MAX_OFFSET = 5000;
+const POLYGON_RPC_URL = process.env.POLYGON_RPC_URL || "https://polygon-rpc.com";
+
+const POLYGON_USDC = {
+  symbol: "USDC",
+  address: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+  decimals: 6,
+};
+const POLYGON_USDCE = {
+  symbol: "USDC.e",
+  address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+  decimals: 6,
+};
 
 const EXTERNAL_INFLOW_TYPES = new Set([
   "REWARD",
@@ -125,6 +137,67 @@ async function apiGet(url) {
   });
   if (!resp.ok) throw new Error(`API ${resp.status}: ${url}`);
   return resp.json();
+}
+
+async function rpcCall(method, params) {
+  const resp = await fetch(POLYGON_RPC_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method,
+      params,
+    }),
+    signal: AbortSignal.timeout(20000),
+  });
+
+  if (!resp.ok) {
+    throw new Error(`RPC ${resp.status}: ${method}`);
+  }
+
+  const payload = await resp.json();
+  if (payload.error) {
+    throw new Error(`RPC error: ${payload.error.message || method}`);
+  }
+
+  return payload.result;
+}
+
+function encodeBalanceOf(wallet) {
+  const normalized = wallet.toLowerCase().replace(/^0x/, "");
+  return `0x70a08231000000000000000000000000${normalized}`;
+}
+
+function formatTokenAmount(rawHex, decimals) {
+  const raw = BigInt(rawHex || "0x0");
+  const divisor = 10n ** BigInt(decimals);
+  const whole = raw / divisor;
+  const fraction = raw % divisor;
+  const fractionStr = fraction.toString().padStart(decimals, "0").replace(/0+$/, "");
+  return Number(fractionStr ? `${whole}.${fractionStr}` : whole.toString());
+}
+
+async function fetchPolygonStablecoinBalances(wallet) {
+  const [usdcRaw, usdceRaw] = await Promise.all([
+    rpcCall("eth_call", [{
+      to: POLYGON_USDC.address,
+      data: encodeBalanceOf(wallet),
+    }, "latest"]).catch(() => "0x0"),
+    rpcCall("eth_call", [{
+      to: POLYGON_USDCE.address,
+      data: encodeBalanceOf(wallet),
+    }, "latest"]).catch(() => "0x0"),
+  ]);
+
+  const usdc = formatTokenAmount(usdcRaw, POLYGON_USDC.decimals);
+  const usdce = formatTokenAmount(usdceRaw, POLYGON_USDCE.decimals);
+
+  return {
+    usdc: round(usdc, 2),
+    usdce: round(usdce, 2),
+    total: round(usdc + usdce, 2),
+  };
 }
 
 async function fetchPaginated(pathname, baseParams, limit, maxOffset) {
@@ -541,7 +614,7 @@ function sortMarkets(markets) {
 
 // ===== Per-Wallet Data Fetching =====
 async function fetchWalletData(wallet) {
-  const [positions, closedPositions, activity, value] = await Promise.all([
+  const [positions, closedPositions, activity, value, stablecoinBalances] = await Promise.all([
     fetchPaginated(
       "/positions",
       { user: wallet },
@@ -561,6 +634,11 @@ async function fetchWalletData(wallet) {
       ACTIVITY_MAX_OFFSET,
     ).catch(() => []),
     apiGet(buildDataApiUrl("/value", { user: wallet })).catch(() => []),
+    fetchPolygonStablecoinBalances(wallet).catch(() => ({
+      usdc: 0,
+      usdce: 0,
+      total: 0,
+    })),
   ]);
 
   const posArray = Array.isArray(positions) ? positions : [];
@@ -771,6 +849,9 @@ async function fetchWalletData(wallet) {
       openPositionValue: round(openPositionValue, 2),
       claimableValue: round(claimableValue, 2),
       openCostBasis: round(openCostBasis, 2),
+      walletUsdc: stablecoinBalances.usdc,
+      walletUsdce: stablecoinBalances.usdce,
+      walletStablecoinTotal: stablecoinBalances.total,
       activePositions: posArray.filter(position => !position.redeemable).length,
       today: {
         date: todaySummary.date,
@@ -897,6 +978,9 @@ async function fetchAllData() {
   let combinedOpenPositionValue = 0;
   let combinedClaimableValue = 0;
   let combinedActivePositions = 0;
+  let combinedWalletUsdc = 0;
+  let combinedWalletUsdce = 0;
+  let combinedWalletStablecoinTotal = 0;
 
   for (const [wallet, walletData] of Object.entries(results)) {
     if (walletData.error) continue;
@@ -921,6 +1005,9 @@ async function fetchAllData() {
     combinedOpenPositionValue += summary.openPositionValue;
     combinedClaimableValue += summary.claimableValue;
     combinedActivePositions += summary.activePositions;
+    combinedWalletUsdc += summary.walletUsdc;
+    combinedWalletUsdce += summary.walletUsdce;
+    combinedWalletStablecoinTotal += summary.walletStablecoinTotal;
 
     walletSummaries.push({
       wallet,
@@ -940,6 +1027,9 @@ async function fetchAllData() {
       winRate: summary.winRate,
       activePositions: summary.activePositions,
       todayNet: summary.today.net,
+      walletUsdc: summary.walletUsdc,
+      walletUsdce: summary.walletUsdce,
+      walletStablecoinTotal: summary.walletStablecoinTotal,
     });
 
     for (const day of walletData.dailyPnL) {
@@ -998,6 +1088,9 @@ async function fetchAllData() {
         accountValue: round(combinedAccountValue, 2),
         openPositionValue: round(combinedOpenPositionValue, 2),
         claimableValue: round(combinedClaimableValue, 2),
+        walletUsdc: round(combinedWalletUsdc, 2),
+        walletUsdce: round(combinedWalletUsdce, 2),
+        walletStablecoinTotal: round(combinedWalletStablecoinTotal, 2),
         activePositions: combinedActivePositions,
         today: {
           date: combinedToday.date,
