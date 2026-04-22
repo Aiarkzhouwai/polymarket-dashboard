@@ -7,7 +7,6 @@ const PORT = process.env.PORT || 3100;
 const SHANGHAI_TZ = "Asia/Shanghai";
 const DATA_DIR = __dirname;
 const CACHE_FILE = path.join(DATA_DIR, "dashboard_cache.json");
-const NOTIFY_STATE_FILE = path.join(DATA_DIR, "notify_state.json");
 
 const ACTIVITY_PAGE_LIMIT = 500;
 const ACTIVITY_MAX_OFFSET = 10000;
@@ -1064,37 +1063,21 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL || "";
 const LOOKBACK_MINUTES = parseInt(process.env.LOOKBACK_MINUTES || "10", 10);
 const NOTIFY_INTERVAL_MS = parseInt(process.env.NOTIFY_INTERVAL_MS || "300000", 10);
 
-function loadNotifyState() {
-  try {
-    return JSON.parse(fs.readFileSync(NOTIFY_STATE_FILE, "utf-8"));
-  } catch {
-    return { lastSentTimestamps: {} };
-  }
-}
-
-function saveNotifyState(state) {
-  fs.writeFileSync(NOTIFY_STATE_FILE, JSON.stringify(state, null, 2));
-}
-
 async function runNotification() {
   if (!WEBHOOK_URL || WALLETS.length === 0) return;
 
   try {
     console.log("[notify] Checking all wallets...");
-    const state = loadNotifyState();
     const allLines = [];
 
     for (const wallet of WALLETS) {
       const shortAddr = wallet.slice(0, 6) + "..." + wallet.slice(-4);
       const alias = ALIASES[wallet] || null;
-      const recentActivity = await apiGet(buildDataApiUrl("/activity", {
-        user: wallet,
-        limit: 200,
-      })).catch(() => []);
-      const positions = await apiGet(buildDataApiUrl("/positions", {
-        user: wallet,
-        limit: 500,
-      })).catch(() => []);
+
+      const [recentActivity, positions] = await Promise.all([
+        apiGet(buildDataApiUrl("/activity", { user: wallet, limit: 200 })).catch(() => []),
+        apiGet(buildDataApiUrl("/positions", { user: wallet, limit: 500 })).catch(() => []),
+      ]);
 
       const pseudonym = Array.isArray(recentActivity)
         ? recentActivity.find(item => item.pseudonym)?.pseudonym
@@ -1104,7 +1087,7 @@ async function runNotification() {
       const positionMap = {};
       if (Array.isArray(positions)) {
         for (const position of positions) {
-          const key = outcomeKey(position.conditionId, position.outcome);
+          const key = `${position.title}_${position.outcome}`;
           positionMap[key] = toNumber(position.size || position.amount);
         }
       }
@@ -1122,7 +1105,8 @@ async function runNotification() {
         const unitCost = toNumber(trade.size) > 0
           ? toNumber(trade.usdcSize) / toNumber(trade.size)
           : 0;
-        const key = `${trade.conditionId}_${normalizeOutcome(trade.outcome, "Resolved")}_${trade.side || "REDEEM"}_${unitCost.toFixed(2)}`;
+        const tradeOutcome = normalizeOutcome(trade.outcome, trade.type === "REDEEM" ? "Resolved" : "?");
+        const key = `${trade.title}_${tradeOutcome}_${trade.side || "REDEEM"}_${unitCost.toFixed(2)}`;
         const last = merged[merged.length - 1];
 
         if (last && last._mergeKey === key) {
@@ -1137,9 +1121,8 @@ async function runNotification() {
         } else {
           merged.push({
             _mergeKey: key,
-            conditionId: trade.conditionId,
             title: trade.title,
-            outcome: normalizeOutcome(trade.outcome, "Resolved"),
+            outcome: tradeOutcome,
             side: trade.side || "REDEEM",
             type: trade.type,
             size: toNumber(trade.size).toFixed(1),
@@ -1152,50 +1135,41 @@ async function runNotification() {
         }
       }
 
-      const lastSentForWallet = state.lastSentTimestamps[wallet] || 0;
-      const fresh = merged.filter(item => item.timestamp > lastSentForWallet);
-      if (fresh.length === 0) continue;
-
-      for (const item of fresh.reverse()) {
+      for (const item of merged) {
         const typeLabel = item.type === "REDEEM"
-          ? "兑现"
+          ? "赎回"
           : item.side === "BUY"
             ? "买入"
             : "卖出";
         const emoji = item.type === "REDEEM"
-          ? "💵"
+          ? "🏆"
           : item.side === "BUY"
             ? "🟢"
             : "🔴";
-        const countLabel = item.count > 1 ? ` x${item.count}` : "";
-        let line = `${emoji} [${label}] **${item.title || "?"}** · ${item.outcome}\n${typeLabel} ${item.size} 股${countLabel} · $${item.usdc} · 单价 $${item.unitCost} · ${item.time}`;
+        const countLabel = item.count > 1 ? ` ×${item.count}` : "";
+        let line = `${emoji} [${label}] **${item.title || "?"}** · ${item.outcome || "?"}\n${typeLabel} ${item.size}份${countLabel} · $${item.usdc} · 单价 $${item.unitCost} · ${item.time}`;
 
         if (item.side === "SELL") {
-          const posKey = outcomeKey(item.conditionId, item.outcome);
+          const posKey = `${item.title}_${item.outcome}`;
           const currentSize = positionMap[posKey] || 0;
           const soldSize = toNumber(item.size);
           const preSellSize = currentSize + soldSize;
           if (preSellSize > 0) {
             const ratio = ((soldSize / preSellSize) * 100).toFixed(1);
-            line += ` · 卖出 ${ratio}%`;
+            line += ` · 卖出${ratio}%`;
           }
         }
 
         allLines.push(line);
       }
-
-      state.lastSentTimestamps[wallet] = Math.max(
-        lastSentForWallet,
-        ...fresh.map(item => item.timestamp),
-      );
     }
 
     if (allLines.length === 0) {
-      console.log("[notify] No new trades found.");
+      console.log("[notify] No trades found.");
       return;
     }
 
-    const header = `Polymarket 交易播报 · ${WALLETS.length} 个钱包 · 最近 ${LOOKBACK_MINUTES} 分钟`;
+    const header = `📊 蒙多的 Polymarket 交易播报（${WALLETS.length}个钱包 · 近${LOOKBACK_MINUTES}分钟）`;
     const payload = {
       msg_type: "interactive",
       card: {
@@ -1220,8 +1194,6 @@ async function runNotification() {
     if (result.code !== 0) {
       throw new Error(`Webhook: ${JSON.stringify(result)}`);
     }
-
-    saveNotifyState(state);
     console.log(`[notify] Sent: ${allLines.length} trades`);
   } catch (err) {
     console.error("[notify] Error:", err.message);
