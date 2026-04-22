@@ -382,7 +382,7 @@ function buildMarketRow(market, rowId, isOpen) {
   const view = marketViewStats(market);
   const multiBadge = market.multiOutcome ? `<span class="status-badge multi">${market.outcomeCount} sides</span>` : "";
 
-  return `<tr onclick="toggleRow(${rowId})" style="cursor:pointer">
+  return `<tr onclick='toggleRow(${JSON.stringify(rowId)})' style="cursor:pointer">
     <td><span class="expand-arrow ${isOpen ? "open" : ""}">&#9654;</span></td>
     <td><div class="expand-toggle">${market.title} ${multiBadge}</div></td>
     <td>${market.outcome}</td>
@@ -491,8 +491,8 @@ function renderTable(markets) {
   filtered.forEach((market, index) => {
     const rowId = `${market.conditionId}-${index}`;
     const isOpen = expandedRows.has(rowId);
-    html += buildMarketRow(market, JSON.stringify(rowId), isOpen);
-    html += buildDetailRow(market, JSON.stringify(rowId), isOpen);
+    html += buildMarketRow(market, rowId, isOpen);
+    html += buildDetailRow(market, rowId, isOpen);
   });
 
   if (!html) {
