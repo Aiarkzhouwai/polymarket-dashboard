@@ -495,8 +495,8 @@ function summarizeMarket(market) {
     const openValue = unresolvedPositions.reduce((sum, position) => sum + toNumber(position.currentValue), 0);
     const claimableValue = claimablePositions.reduce((sum, position) => {
       const currentValue = toNumber(position.currentValue);
-      if (currentValue > 0) return sum + currentValue;
-      return sum + Math.max(0, toNumber(position.initialValue) + toNumber(position.realizedPnl));
+      const estimatedRedeemValue = toNumber(position.size) * toNumber(position.curPrice);
+      return sum + Math.max(currentValue, estimatedRedeemValue, 0);
     }, 0);
     const openCostBasis = unresolvedPositions.reduce((sum, position) => {
       return sum + toNumber(position.initialValue);
