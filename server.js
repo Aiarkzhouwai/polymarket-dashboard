@@ -491,18 +491,28 @@ function summarizeMarket(market) {
     const unresolvedPositions = outcome.currentPositions.filter(position => !position.redeemable);
     const claimablePositions = outcome.currentPositions.filter(position => position.redeemable);
     const openValue = unresolvedPositions.reduce((sum, position) => sum + toNumber(position.currentValue), 0);
-    const claimableValue = claimablePositions.reduce((sum, position) => sum + toNumber(position.currentValue), 0);
+    const claimableValue = claimablePositions.reduce((sum, position) => {
+      const currentValue = toNumber(position.currentValue);
+      if (currentValue > 0) return sum + currentValue;
+      return sum + Math.max(0, toNumber(position.initialValue) + toNumber(position.realizedPnl));
+    }, 0);
     const openCostBasis = unresolvedPositions.reduce((sum, position) => {
       return sum + toNumber(position.initialValue);
     }, 0);
+    const cashBack = sellRevenue + redeemRevenue;
+    const totalPnlFromFlows = cashBack + openValue + claimableValue - bought;
+    const realizedPnlValue = unresolvedPositions.length === 0
+      ? totalPnlFromFlows
+      : cashBack - bought;
+    const positionPnlValue = totalPnlFromFlows - realizedPnlValue;
 
     totalBought += bought;
     totalCost += bought;
     totalSellRevenue += sellRevenue;
     totalRedeemRevenue += redeemRevenue;
-    totalCurrentValue += currentValue;
-    totalRealizedPnl += realizedPnl;
-    totalPositionPnl += positionPnl;
+    totalCurrentValue += openValue + claimableValue;
+    totalRealizedPnl += realizedPnlValue;
+    totalPositionPnl += positionPnlValue;
     totalOpenValue += openValue;
     totalClaimableValue += claimableValue;
     totalOpenCostBasis += openCostBasis;
@@ -549,10 +559,10 @@ function summarizeMarket(market) {
       sellRevenue: round(sellRevenue, 2),
       sellSize: round(sellSize, 2),
       redeemRevenue: round(redeemRevenue, 2),
-      currentValue: round(currentValue, 2),
-      realizedPnl: round(realizedPnl, 2),
-      positionPnl: round(positionPnl, 2),
-      totalPnl: round(realizedPnl + positionPnl, 2),
+      currentValue: round(openValue + claimableValue, 2),
+      realizedPnl: round(realizedPnlValue, 2),
+      positionPnl: round(positionPnlValue, 2),
+      totalPnl: round(totalPnlFromFlows, 2),
       buyCount: outcome.buys.length,
       sellCount: outcome.sells.length,
       redeemCount: outcome.redeems.length,
@@ -583,7 +593,7 @@ function summarizeMarket(market) {
     status = "SOLD";
   }
 
-  const totalPnl = totalRealizedPnl + totalPositionPnl;
+  const totalPnl = totalSellRevenue + totalRedeemRevenue + totalOpenValue + totalClaimableValue - totalCost;
   const avgBuyPrice = allBuyTrades.length > 0
     ? allBuyTrades.reduce((sum, trade) => sum + toNumber(trade.usdc), 0)
       / Math.max(allBuyTrades.reduce((sum, trade) => sum + toNumber(trade.size), 0), 1)
@@ -827,36 +837,20 @@ async function fetchWalletData(wallet) {
   const soldMarkets = marketResults.filter(r => r.status === "SOLD");
   const holdMarkets = marketResults.filter(r => r.status === "HOLDING");
 
-  const openPositions = posArray.filter(position => !position.redeemable);
-  const claimablePositions = posArray.filter(position => position.redeemable);
-
-  const realizedTradingPnL = closedArray.reduce((sum, position) => {
-    return sum + toNumber(position.realizedPnl);
-  }, 0) + claimablePositions.reduce((sum, position) => {
-    return sum + toNumber(position.realizedPnl);
-  }, 0);
-  const positionPnL = openPositions.reduce((sum, position) => {
-    return sum + toNumber(position.cashPnl);
-  }, 0);
-  const totalTradingPnL = realizedTradingPnL + positionPnL;
+  const totalBought = marketResults.reduce((sum, market) => sum + toNumber(market.cost), 0);
+  const realizedTradingPnL = marketResults
+    .filter(market => market.status !== "HOLDING")
+    .reduce((sum, market) => sum + toNumber(market.pnl), 0);
+  const positionPnL = marketResults
+    .filter(market => market.status === "HOLDING")
+    .reduce((sum, market) => sum + toNumber(market.pnl), 0);
+  const totalTradingPnL = marketResults.reduce((sum, market) => sum + toNumber(market.pnl), 0);
   const externalNet = externalInflow - externalOutflow;
   const netPnL = totalTradingPnL + externalNet;
-  const totalBought = closedArray.reduce((sum, position) => {
-    return sum + toNumber(position.totalBought);
-  }, 0) + posArray.reduce((sum, position) => {
-    return sum + toNumber(position.initialValue);
-  }, 0);
-  const openPositionValue = openPositions.reduce((sum, position) => {
-    return sum + toNumber(position.currentValue);
-  }, 0);
-  const claimableValue = claimablePositions.reduce((sum, position) => {
-    const currentValue = toNumber(position.currentValue);
-    if (currentValue > 0) return sum + currentValue;
-    return sum + Math.max(0, toNumber(position.initialValue) + toNumber(position.realizedPnl));
-  }, 0);
-  const openCostBasis = openPositions.reduce((sum, position) => {
-    return sum + toNumber(position.initialValue);
-  }, 0);
+  const openPositionValue = marketResults.reduce((sum, market) => sum + toNumber(market.openValue), 0);
+  const claimableValue = marketResults.reduce((sum, market) => sum + toNumber(market.claimableValue), 0);
+  const openCostBasis = marketResults.reduce((sum, market) => sum + toNumber(market.openCostBasis), 0);
+  const openPositions = posArray.filter(position => !position.redeemable);
 
   const dailyPnL = aggregateDailyRows(dailyPnLMap);
   const todaySummary = dailyPnL.find(row => row.date === todayKey) || emptyDailyRow(todayKey);
