@@ -827,12 +827,15 @@ async function fetchWalletData(wallet) {
   const soldMarkets = marketResults.filter(r => r.status === "SOLD");
   const holdMarkets = marketResults.filter(r => r.status === "HOLDING");
 
+  const openPositions = posArray.filter(position => !position.redeemable);
+  const claimablePositions = posArray.filter(position => position.redeemable);
+
   const realizedTradingPnL = closedArray.reduce((sum, position) => {
     return sum + toNumber(position.realizedPnl);
-  }, 0) + posArray.reduce((sum, position) => {
+  }, 0) + claimablePositions.reduce((sum, position) => {
     return sum + toNumber(position.realizedPnl);
   }, 0);
-  const positionPnL = posArray.reduce((sum, position) => {
+  const positionPnL = openPositions.reduce((sum, position) => {
     return sum + toNumber(position.cashPnl);
   }, 0);
   const totalTradingPnL = realizedTradingPnL + positionPnL;
@@ -843,15 +846,17 @@ async function fetchWalletData(wallet) {
   }, 0) + posArray.reduce((sum, position) => {
     return sum + toNumber(position.initialValue);
   }, 0);
-  const openPositionValue = posArray
-    .filter(position => !position.redeemable)
-    .reduce((sum, position) => sum + toNumber(position.currentValue), 0);
-  const claimableValue = posArray
-    .filter(position => position.redeemable)
-    .reduce((sum, position) => sum + toNumber(position.currentValue), 0);
-  const openCostBasis = posArray
-    .filter(position => !position.redeemable)
-    .reduce((sum, position) => sum + toNumber(position.initialValue), 0);
+  const openPositionValue = openPositions.reduce((sum, position) => {
+    return sum + toNumber(position.currentValue);
+  }, 0);
+  const claimableValue = claimablePositions.reduce((sum, position) => {
+    const currentValue = toNumber(position.currentValue);
+    if (currentValue > 0) return sum + currentValue;
+    return sum + Math.max(0, toNumber(position.initialValue) + toNumber(position.realizedPnl));
+  }, 0);
+  const openCostBasis = openPositions.reduce((sum, position) => {
+    return sum + toNumber(position.initialValue);
+  }, 0);
 
   const dailyPnL = aggregateDailyRows(dailyPnLMap);
   const todaySummary = dailyPnL.find(row => row.date === todayKey) || emptyDailyRow(todayKey);
@@ -897,7 +902,7 @@ async function fetchWalletData(wallet) {
       walletStablecoinTotal: stablecoinBalances.total,
       walletStablecoinAddress: stablecoinBalances.address,
       walletStablecoinSource: stablecoinBalances.source,
-      activePositions: posArray.filter(position => !position.redeemable).length,
+      activePositions: openPositions.length,
       today: {
         date: todaySummary.date,
         buyCost: round(todaySummary.buyCost, 2),
