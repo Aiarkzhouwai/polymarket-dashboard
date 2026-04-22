@@ -16,24 +16,24 @@
     --purple: #a78bfa; --purple-bg: rgba(167,139,250,0.1);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
   .header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid var(--border); background: rgba(19,26,42,0.8); backdrop-filter: blur(10px); flex-wrap: wrap; gap: 12px; }
   .header-left { display: flex; align-items: center; gap: 12px; }
   .logo { font-size: 28px; }
   .header-left h1 { font-size: 18px; font-weight: 700; }
-  .subtitle { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  .subtitle { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); margin-top: 2px; flex-wrap: wrap; }
   .header-right { display: flex; align-items: center; gap: 12px; }
   .auto-badge { font-size: 11px; color: var(--text-dim); background: var(--card); padding: 4px 10px; border-radius: 12px; border: 1px solid var(--border); }
   .refresh-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
   .refresh-btn:hover { border-color: var(--blue); }
   .refresh-btn.loading .spin { animation: spin 0.8s linear infinite; }
   .status-dot { width: 8px; height: 8px; background: var(--green); border-radius: 50%; }
+  .table-note { font-size: 11px; color: var(--text-dim); margin-top: 8px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
 
-  /* Wallet Selector */
   .wallet-bar { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
   .wallet-bar-label { font-size: 12px; color: var(--text-dim); margin-right: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
   .wallet-tab { padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; background: transparent; border: 1px solid transparent; color: var(--text-dim); transition: all 0.2s; white-space: nowrap; }
@@ -48,7 +48,7 @@
   .kpi-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .kpi-value.green { color: var(--green); }
   .kpi-value.red { color: var(--red); }
-  .kpi-sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+  .kpi-sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; line-height: 1.4; }
 
   .charts-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px; }
   .chart-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
@@ -57,7 +57,7 @@
 
   .table-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
   .table-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
-  .table-tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+  .table-tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
   .tab { padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; background: transparent; border: 1px solid transparent; color: var(--text-dim); transition: all 0.2s; }
   .tab:hover { color: var(--text); background: var(--card-hover); }
   .tab.active { color: var(--text); background: var(--card-hover); border-color: var(--border); }
@@ -76,18 +76,15 @@
   .status-badge.multi { background: var(--purple-bg); color: var(--purple); font-size: 10px; margin-left: 4px; }
   .pnl-positive { color: var(--green); }
   .pnl-negative { color: var(--red); }
-  .wallet-addr { font-family: 'SF Mono', monospace; font-size: 12px; color: var(--text-dim); }
 
-  /* Wallet overview cards in combined view */
   .wallet-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 24px; }
   .wallet-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; cursor: pointer; transition: all 0.2s; }
   .wallet-card:hover { border-color: var(--blue); transform: translateY(-1px); }
   .wallet-card-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
   .wallet-card-addr { font-size: 11px; color: var(--text-dim); font-family: monospace; margin-bottom: 8px; }
   .wallet-card-pnl { font-size: 20px; font-weight: 700; }
-  .wallet-card-stats { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+  .wallet-card-stats { font-size: 11px; color: var(--text-dim); margin-top: 4px; line-height: 1.5; }
 
-  /* Expandable */
   .expand-toggle { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; }
   .expand-arrow { display: inline-block; transition: transform 0.2s; font-size: 10px; color: var(--text-dim); }
   .expand-arrow.open { transform: rotate(90deg); }
@@ -100,7 +97,7 @@
   .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 8px; }
   .detail-stat { font-size: 12px; }
   .detail-stat .label { color: var(--text-dim); font-size: 10px; }
-  .detail-stat .val { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .detail-stat .val { font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.5; }
   .trade-table { width: 100%; font-size: 11px; border-collapse: collapse; }
   .trade-table th { font-size: 10px; padding: 6px 8px; color: var(--text-dim); border-bottom: 1px solid var(--border); background: transparent; position: static; }
   .trade-table td { padding: 5px 8px; font-variant-numeric: tabular-nums; border-bottom: 1px solid rgba(30,42,69,0.5); }
@@ -132,6 +129,7 @@
       <div class="subtitle">
         <span id="walletCount" style="margin-left:4px"></span>
         <span id="updateTime" style="margin-left:12px"></span>
+        <span>All timestamps use China time (UTC+8)</span>
       </div>
     </div>
   </div>
@@ -147,377 +145,515 @@
   <div id="walletOverview" class="wallet-cards" style="display:none"></div>
   <div class="kpi-grid" id="kpiGrid"></div>
   <div id="walletDetailSection">
-  <div class="charts-grid">
-    <div class="chart-card"><h3>&#128200; Daily Cash Flow</h3><div class="chart-container"><canvas id="dailyChart"></canvas></div></div>
-    <div class="chart-card"><h3>&#128202; Market Status</h3><div class="chart-container"><canvas id="pieChart"></canvas></div></div>
-  </div>
-  <div class="charts-grid" style="grid-template-columns:1fr;">
-    <div class="chart-card"><h3>&#128176; Per-Market P&L</h3><div class="chart-container"><canvas id="pnlChart"></canvas></div></div>
-  </div>
-  <div class="chart-card">
-    <h3>&#128197; Daily P&L Summary</h3>
-    <div style="overflow-x:auto">
-      <table class="trade-table" id="dailyPnlTable" style="margin-top:8px">
-        <thead><tr><th>Date</th><th>Cost</th><th>Return</th><th>Net</th><th>Cumulative</th><th>Trades</th></tr></thead>
-        <tbody id="dailyPnlBody"></tbody>
-      </table>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>&#128200; Daily Trading Cash Flow</h3><div class="chart-container"><canvas id="dailyChart"></canvas></div></div>
+      <div class="chart-card"><h3>&#128202; Market Status</h3><div class="chart-container"><canvas id="pieChart"></canvas></div></div>
     </div>
-  </div>
-  <div class="table-card">
-    <h3>&#128203; Market Details <span style="font-weight:400;color:var(--text-dim);font-size:12px;margin-left:8px">Click row to expand trades</span></h3>
-    <div class="table-tabs" id="statusTabs">
-      <div class="tab active" data-filter="all" onclick="filterTable('all', this)">All</div>
-      <div class="tab" data-filter="WON" onclick="filterTable('WON', this)">&#127942; Won</div>
-      <div class="tab" data-filter="LOST" onclick="filterTable('LOST', this)">&#128165; Lost</div>
-      <div class="tab" data-filter="SOLD" onclick="filterTable('SOLD', this)">&#128204; Sold</div>
-      <div class="tab" data-filter="HOLDING" onclick="filterTable('HOLDING', this)">&#9203; Open</div>
+    <div class="charts-grid" style="grid-template-columns:1fr;">
+      <div class="chart-card"><h3>&#128176; Per-Market Total P&amp;L</h3><div class="chart-container"><canvas id="pnlChart"></canvas></div></div>
     </div>
-    <div style="overflow-x:auto;">
-      <table><thead><tr>
-        <th style="width:24px"></th><th>Market</th><th>Side</th><th>Status</th><th>Buy Time</th><th>Avg Prob</th><th>Cost</th><th>Return</th><th>P&L</th><th>ROI</th><th>Hold</th>
-      </tr></thead><tbody id="marketTable"></tbody></table>
+    <div class="chart-card">
+      <h3>&#128197; Daily P&amp;L Summary</h3>
+      <div style="overflow-x:auto">
+        <table class="trade-table" id="dailyPnlTable" style="margin-top:8px">
+          <thead><tr><th>Date</th><th>Buy</th><th>Cash Back</th><th>Non-trade</th><th>Net</th><th>Cumulative</th><th>Events</th></tr></thead>
+          <tbody id="dailyPnlBody"></tbody>
+        </table>
+      </div>
+      <div class="table-note">Non-trade currently includes rewards, rebates, and any non-TRADE / REDEEM activity returned by Polymarket.</div>
     </div>
-  </div>
+    <div class="table-card">
+      <h3>&#128203; Market Details <span style="font-weight:400;color:var(--text-dim);font-size:12px;margin-left:8px">Sorted by latest activity in China time</span></h3>
+      <div class="table-tabs" id="statusTabs">
+        <div class="tab active" data-filter="all" onclick="filterTable('all', this)">All</div>
+        <div class="tab" data-filter="TODAY" onclick="filterTable('TODAY', this)">Today</div>
+        <div class="tab" data-filter="WON" onclick="filterTable('WON', this)">&#127942; Won</div>
+        <div class="tab" data-filter="LOST" onclick="filterTable('LOST', this)">&#128165; Lost</div>
+        <div class="tab" data-filter="SOLD" onclick="filterTable('SOLD', this)">&#128204; Sold</div>
+        <div class="tab" data-filter="HOLDING" onclick="filterTable('HOLDING', this)">&#9203; Open</div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table><thead><tr>
+          <th style="width:24px"></th><th>Market</th><th>Side</th><th>Status</th><th>Last Activity</th><th>Avg Prob</th><th>Buy Cost</th><th>Cash Back</th><th>P&amp;L</th><th>ROI</th><th>Hold</th>
+        </tr></thead><tbody id="marketTable"></tbody></table>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
 let data = null;
 let dailyChart, pieChart, pnlChart;
-let currentWallet = "combined"; // "combined" or wallet address
-let currentFilter = 'all';
+let currentWallet = "combined";
+let currentFilter = "all";
 let expandedRows = new Set();
 
+function formatUsd(value, digits = 2) {
+  return "$" + Number(value || 0).toFixed(digits);
+}
+
+function formatSignedUsd(value, digits = 2) {
+  const num = Number(value || 0);
+  const sign = num > 0 ? "+" : "";
+  return sign + "$" + num.toFixed(digits);
+}
+
+function formatPct(value, digits = 1) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
+  const num = Number(value);
+  const sign = num > 0 ? "+" : "";
+  return sign + num.toFixed(digits) + "%";
+}
+
+function valueClass(value) {
+  return Number(value || 0) >= 0 ? "pnl-positive" : "pnl-negative";
+}
+
+function formatShanghaiDateTime(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    hour12: false,
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function formatShanghaiTimestamp(ts) {
+  if (!ts) return "-";
+  return formatShanghaiDateTime(new Date(Number(ts) * 1000).toISOString());
+}
+
+function marketMatchesFilter(market) {
+  if (currentFilter === "all") return true;
+  if (currentFilter === "TODAY") return market.today && market.today.hasActivity;
+  return market.status === currentFilter;
+}
+
+function sortMarketsForDisplay(markets) {
+  return [...markets].sort((a, b) => {
+    const aTs = currentFilter === "TODAY" ? (a.today?.lastTimestamp || 0) : (a.lastTradeTimestamp || 0);
+    const bTs = currentFilter === "TODAY" ? (b.today?.lastTimestamp || 0) : (b.lastTradeTimestamp || 0);
+    if (bTs !== aTs) return bTs - aTs;
+    return (b.pnl || 0) - (a.pnl || 0);
+  });
+}
+
+function marketViewStats(market) {
+  if (currentFilter === "TODAY") {
+    const today = market.today || {};
+    const buyCost = Number(today.buyCost || 0);
+    const pnl = Number(today.net || 0);
+    return {
+      time: formatShanghaiTimestamp(today.lastTimestamp),
+      cost: buyCost,
+      cashBack: Number(today.cashBack || 0),
+      pnl,
+      pnlPct: buyCost > 0 ? (pnl / buyCost) * 100 : null,
+    };
+  }
+
+  return {
+    time: formatShanghaiTimestamp(market.lastTradeTimestamp),
+    cost: Number(market.cost || 0),
+    cashBack: Number(market.cashBack || 0),
+    pnl: Number(market.pnl || 0),
+    pnlPct: market.pnlPct,
+  };
+}
+
 async function refresh(manual = false) {
-  const btn = document.getElementById('refreshBtn');
-  if (manual) btn.classList.add('loading');
+  const btn = document.getElementById("refreshBtn");
+  if (manual) btn.classList.add("loading");
+
   try {
-    const resp = await fetch('/api/data?refresh=' + manual);
+    const resp = await fetch("/api/data?refresh=" + manual);
     data = await resp.json();
+    document.getElementById("walletCount").textContent = `${data.combined.summary.walletCount} wallets tracked`;
+    document.getElementById("updateTime").textContent = "Updated " + formatShanghaiDateTime(data.lastUpdated);
     renderWalletBar();
     renderCurrentView();
-    document.getElementById('updateTime').textContent = 'Updated ' + new Date(data.lastUpdated).toLocaleTimeString('en-US', { hour12: false });
-  } catch (e) { console.error('Refresh failed:', e); }
-  if (manual) btn.classList.remove('loading');
-  document.getElementById('loading').style.display = 'none';
+  } catch (err) {
+    console.error("Refresh failed:", err);
+  }
+
+  if (manual) btn.classList.remove("loading");
+  document.getElementById("loading").style.display = "none";
 }
 
 function renderWalletBar() {
   if (!data || data.error) return;
-  const bar = document.getElementById('walletBar');
+  const bar = document.getElementById("walletBar");
   const summaries = data.walletSummaries || [];
+  const combined = data.combined.summary;
 
   let html = '<span class="wallet-bar-label">&#128274; Wallets</span>';
-  // Combined tab
-  const c = data.combined.summary;
-  const cSign = c.tradingPnL >= 0 ? '+' : '';
-  const cColor = c.tradingPnL >= 0 ? 'var(--green)' : 'var(--red)';
-  html += `<div class="wallet-tab ${currentWallet === 'combined' ? 'active' : ''}" onclick="selectWallet('combined')">
-    &#128202; All <span class="wallet-pnl" style="color:${cColor}">${cSign}$${c.tradingPnL.toFixed(0)}</span>
+  html += `<div class="wallet-tab ${currentWallet === "combined" ? "active" : ""}" onclick="selectWallet('combined')">
+    &#128202; All <span class="wallet-pnl" style="color:${combined.netPnL >= 0 ? "var(--green)" : "var(--red)"}">${formatSignedUsd(combined.netPnL, 0)}</span>
   </div>`;
 
-  for (const ws of summaries) {
-    const sign = ws.pnl >= 0 ? '+' : '';
-    const color = ws.pnl >= 0 ? 'var(--green)' : 'var(--red)';
-    html += `<div class="wallet-tab ${currentWallet === ws.wallet ? 'active' : ''}" onclick="selectWallet('${ws.wallet}')">
-      ${ws.displayName} <span class="wallet-pnl" style="color:${color}">${sign}$${ws.pnl.toFixed(0)}</span>
+  for (const wallet of summaries) {
+    html += `<div class="wallet-tab ${currentWallet === wallet.wallet ? "active" : ""}" onclick="selectWallet('${wallet.wallet}')">
+      ${wallet.displayName} <span class="wallet-pnl" style="color:${wallet.pnl >= 0 ? "var(--green)" : "var(--red)"}">${formatSignedUsd(wallet.pnl, 0)}</span>
     </div>`;
   }
+
   bar.innerHTML = html;
 }
 
 function selectWallet(wallet) {
   currentWallet = wallet;
   expandedRows.clear();
-  document.querySelectorAll('.wallet-tab').forEach(t => t.classList.remove('active'));
   renderWalletBar();
   renderCurrentView();
 }
 
 function renderCurrentView() {
   if (!data || data.error) return;
-  if (currentWallet === 'combined') {
-    renderCombinedView();
-  } else {
-    renderSingleWalletView(currentWallet);
-  }
+  if (currentWallet === "combined") renderCombinedView();
+  else renderSingleWalletView(currentWallet);
 }
 
 function renderCombinedView() {
-  const c = data.combined.summary;
-  const s = c;
-  const pnlSign = s.tradingPnL >= 0 ? '+' : '';
-  const pnlClass = s.tradingPnL >= 0 ? 'green' : 'red';
+  const summary = data.combined.summary;
+  const walletSummaries = data.walletSummaries || [];
 
-  document.getElementById('walletOverview').style.display = 'grid';
-  // Wallet overview cards
-  const summaries = data.walletSummaries || [];
-  document.getElementById('walletOverview').innerHTML = summaries.map(ws => {
-    const sign = ws.pnl >= 0 ? '+' : '';
-    const color = ws.pnl >= 0 ? 'var(--green)' : 'var(--red)';
-    return `<div class="wallet-card" onclick="selectWallet('${ws.wallet}')">
-      <div class="wallet-card-name">${ws.displayName}</div>
-      <div class="wallet-card-addr">${ws.shortAddr}</div>
-      <div class="wallet-card-pnl" style="color:${color}">${sign}$${ws.pnl.toFixed(2)}</div>
-      <div class="wallet-card-stats">${ws.markets} markets | &#127942;${ws.wonCount} &#128165;${ws.lostCount||0} &#128204;${ws.soldCount} &#9203;${ws.holdCount} | WR ${ws.winRate.toFixed(0)}%</div>
+  document.getElementById("walletOverview").style.display = "grid";
+  document.getElementById("walletOverview").innerHTML = walletSummaries.map(wallet => {
+    return `<div class="wallet-card" onclick="selectWallet('${wallet.wallet}')">
+      <div class="wallet-card-name">${wallet.displayName}</div>
+      <div class="wallet-card-addr">${wallet.shortAddr}</div>
+      <div class="wallet-card-pnl" style="color:${wallet.pnl >= 0 ? "var(--green)" : "var(--red)"}">${formatSignedUsd(wallet.pnl)}</div>
+      <div class="wallet-card-stats">${wallet.markets} markets · WR ${wallet.winRate.toFixed(1)}% · Today ${formatSignedUsd(wallet.todayNet)}</div>
+      <div class="wallet-card-stats">&#127942; ${wallet.wonCount} Won · &#128165; ${wallet.lostCount} Lost · &#128204; ${wallet.soldCount} Sold · &#9203; ${wallet.holdCount} Open</div>
     </div>`;
-  }).join('');
+  }).join("");
 
-  document.getElementById('kpiGrid').innerHTML = `
-    <div class="kpi-card"><div class="kpi-label">Combined P&L</div><div class="kpi-value ${pnlClass}">${pnlSign}$${s.tradingPnL.toFixed(2)}</div><div class="kpi-sub">${pnlSign}${s.tradingPnLPct.toFixed(1)}% ROI</div></div>
-    <div class="kpi-card"><div class="kpi-label">Wallets</div><div class="kpi-value">${s.walletCount}</div><div class="kpi-sub">${summaries.map(w=>w.displayName).join(', ')}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Total Markets</div><div class="kpi-value">${s.totalMarkets}</div><div class="kpi-sub">&#127942; ${s.wonCount} Won &#128165; ${s.lostCount} Lost &#128204; ${s.soldCount} Sold &#9203; ${s.holdCount} Open</div></div>
-    <div class="kpi-card"><div class="kpi-label">Total In / Out</div><div class="kpi-value" style="font-size:20px">$${s.totalCost.toFixed(0)} <span style="color:var(--text-dim)">~&gt;</span> $${s.totalRevenue.toFixed(0)}</div><div class="kpi-sub">Gross turnover</div></div>
-    <div class="kpi-card"><div class="kpi-label">Win Rate</div><div class="kpi-value">${s.winRate.toFixed(0)}%</div><div class="kpi-sub">${s.wonCount} / ${s.wonCount + s.lostCount + s.soldCount} settled</div></div>
+  document.getElementById("kpiGrid").innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">Net P&amp;L</div><div class="kpi-value ${summary.netPnL >= 0 ? "green" : "red"}">${formatSignedUsd(summary.netPnL)}</div><div class="kpi-sub">Trading ${formatSignedUsd(summary.totalTradingPnL)} · Non-trade ${formatSignedUsd(summary.externalNet)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Today</div><div class="kpi-value ${summary.today.net >= 0 ? "green" : "red"}">${formatSignedUsd(summary.today.net)}</div><div class="kpi-sub">Buy ${formatUsd(summary.today.buyCost)} · Cash back ${formatUsd(summary.today.cashBack)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Capital Used</div><div class="kpi-value">${formatUsd(summary.totalBought, 0)}</div><div class="kpi-sub">Net ROI ${formatPct(summary.netPnLPct)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Open Value</div><div class="kpi-value" style="color:var(--blue)">${formatUsd(summary.openPositionValue + summary.claimableValue)}</div><div class="kpi-sub">Open ${formatUsd(summary.openPositionValue)} · Claimable ${formatUsd(summary.claimableValue)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Markets</div><div class="kpi-value">${summary.totalMarkets}</div><div class="kpi-sub">&#127942; ${summary.wonCount} · &#128165; ${summary.lostCount} · &#128204; ${summary.soldCount} · &#9203; ${summary.holdCount}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Resolved Win Rate</div><div class="kpi-value">${summary.winRate.toFixed(1)}%</div><div class="kpi-sub">${summary.walletCount} wallets · ${summary.activePositions} active positions</div></div>
   `;
 
-  // Hide detail section in combined view
-  document.getElementById('walletDetailSection').style.display = 'none';
-  renderCombinedTable(data.data || {});
-}
-
-function renderCombinedTable(walletData) {
-  const tbody = document.getElementById('marketTable');
-  let html = '';
-  let gi = 0;
-
-  for (const [addr, wd] of Object.entries(walletData)) {
-    if (wd.error) continue;
-    const wName = wd.displayName || wd.shortAddr;
-    const filtered = currentFilter === 'all' ? wd.markets : wd.markets.filter(m => m.status === currentFilter);
-    for (const m of filtered) {
-      const isOpen = expandedRows.has(gi);
-      html += buildMarketRow(m, gi, isOpen, wName);
-      html += buildDetailRow(m, gi, isOpen);
-      gi++;
-    }
-  }
-  tbody.innerHTML = html;
+  document.getElementById("walletDetailSection").style.display = "none";
 }
 
 function renderSingleWalletView(wallet) {
-  const wd = (data.data || {})[wallet];
-  // Show detail section (hidden in combined view)
-  document.getElementById('walletDetailSection').style.display = '';
-  if (!wd || wd.error) {
-    document.getElementById('kpiGrid').innerHTML = `<div class="kpi-card"><div class="kpi-label">Error</div><div class="kpi-value" style="color:var(--red)">${wd?.error || 'Wallet not found'}</div></div>`;
-    document.getElementById('walletOverview').style.display = 'none';
-    document.getElementById('marketTable').innerHTML = '';
+  const walletData = (data.data || {})[wallet];
+  document.getElementById("walletDetailSection").style.display = "";
+
+  if (!walletData || walletData.error) {
+    document.getElementById("walletOverview").style.display = "none";
+    document.getElementById("kpiGrid").innerHTML = `<div class="kpi-card"><div class="kpi-label">Error</div><div class="kpi-value red">${walletData?.error || "Wallet not found"}</div></div>`;
+    document.getElementById("marketTable").innerHTML = "";
     return;
   }
-  document.getElementById('walletOverview').style.display = 'none';
-  const s = wd.summary;
-  const pnlSign = s.tradingPnL >= 0 ? '+' : '';
-  const pnlClass = s.tradingPnL >= 0 ? 'green' : 'red';
-  const marketsWithBuy = wd.markets.filter(m => m.avgBuyPrice > 0);
 
-  document.getElementById('kpiGrid').innerHTML = `
-    <div class="kpi-card"><div class="kpi-label">Net P&L</div><div class="kpi-value ${pnlClass}">${pnlSign}$${s.tradingPnL.toFixed(2)}</div><div class="kpi-sub">${pnlSign}${s.tradingPnLPct.toFixed(1)}% ROI</div></div>
-    <div class="kpi-card"><div class="kpi-label">Settled Markets</div><div class="kpi-value">${s.wonCount + s.lostCount + s.soldCount} <span style="font-size:16px;color:var(--text-dim)">/ ${s.totalMarkets}</span></div><div class="kpi-sub">&#127942; ${s.wonCount} Won &#128165; ${s.lostCount} Lost &#128204; ${s.soldCount} Sold &#9203; ${s.holdCount} Open</div></div>
-    <div class="kpi-card"><div class="kpi-label">Win Rate</div><div class="kpi-value">${s.winRate.toFixed(0)}%</div><div class="kpi-sub">${s.wonCount} / ${s.wonCount + s.lostCount + s.soldCount} settled</div></div>
-    <div class="kpi-card"><div class="kpi-label">Total In / Out</div><div class="kpi-value" style="font-size:20px">$${s.totalCost.toFixed(0)} <span style="color:var(--text-dim)">~&gt;</span> $${s.totalRevenue.toFixed(0)}</div><div class="kpi-sub">Gross turnover</div></div>
-    <div class="kpi-card"><div class="kpi-label">Account Value</div><div class="kpi-value" style="color:var(--blue)">$${s.accountValue != null ? s.accountValue.toFixed(2) : '-'}</div><div class="kpi-sub">${s.activePositions} active positions</div></div>
-    <div class="kpi-card"><div class="kpi-label">Avg Buy Prob</div><div class="kpi-value" style="color:var(--yellow)">${marketsWithBuy.length > 0 ? (marketsWithBuy.reduce((sum, m) => sum + m.impliedProb, 0) / marketsWithBuy.length).toFixed(1) + '%' : '-'}</div><div class="kpi-sub">Lower = higher odds</div></div>
+  const summary = walletData.summary;
+  document.getElementById("walletOverview").style.display = "none";
+  document.getElementById("kpiGrid").innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">Net P&amp;L</div><div class="kpi-value ${summary.netPnL >= 0 ? "green" : "red"}">${formatSignedUsd(summary.netPnL)}</div><div class="kpi-sub">Trading ${formatSignedUsd(summary.totalTradingPnL)} · Non-trade ${formatSignedUsd(summary.externalNet)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Today</div><div class="kpi-value ${summary.today.net >= 0 ? "green" : "red"}">${formatSignedUsd(summary.today.net)}</div><div class="kpi-sub">Buy ${formatUsd(summary.today.buyCost)} · Cash back ${formatUsd(summary.today.cashBack)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Realized P&amp;L</div><div class="kpi-value ${summary.realizedTradingPnL >= 0 ? "green" : "red"}">${formatSignedUsd(summary.realizedTradingPnL)}</div><div class="kpi-sub">Closed positions only</div></div>
+    <div class="kpi-card"><div class="kpi-label">Position P&amp;L</div><div class="kpi-value ${summary.positionPnL >= 0 ? "green" : "red"}">${formatSignedUsd(summary.positionPnL)}</div><div class="kpi-sub">Open and claimable positions</div></div>
+    <div class="kpi-card"><div class="kpi-label">Position Value</div><div class="kpi-value" style="color:var(--blue)">${formatUsd(summary.openPositionValue + summary.claimableValue)}</div><div class="kpi-sub">Open ${formatUsd(summary.openPositionValue)} · Claimable ${formatUsd(summary.claimableValue)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Markets</div><div class="kpi-value">${summary.totalMarkets}</div><div class="kpi-sub">&#127942; ${summary.wonCount} · &#128165; ${summary.lostCount} · &#128204; ${summary.soldCount} · &#9203; ${summary.holdCount} · WR ${summary.winRate.toFixed(1)}%</div></div>
   `;
-  renderDailyChart(wd.dailyPnL || []);
-  renderDailyPnlTable(wd.dailyPnL || [], wd.positions || []);
-  renderPieChart(s);
-  const resolved = wd.markets.filter(m => m.pnl !== null);
-  renderPnlChart(resolved);
-  renderTable(wd.markets);
+
+  renderDailyChart(walletData.dailyPnL || []);
+  renderDailyPnlTable(walletData.dailyPnL || [], summary);
+  renderPieChart(summary);
+  renderPnlChart(walletData.markets || []);
+  renderTable(walletData.markets || []);
 }
 
-function buildMarketRow(m, gi, isOpen, walletLabel) {
-  const statusClass = m.status.toLowerCase();
-  const statusIcon = m.status === 'WON' ? '&#127942;' : m.status === 'LOST' ? '&#128165;' : m.status === 'SOLD' ? '&#128204;' : '&#9203;';
-  const statusText = m.status === 'WON' ? 'Won' : m.status === 'LOST' ? 'Lost' : m.status === 'SOLD' ? 'Sold' : 'Open';
-  const pnlClass = m.pnl !== null ? (m.pnl >= 0 ? 'pnl-positive' : 'pnl-negative') : '';
-  const pnlStr = m.pnl !== null ? (m.pnl >= 0 ? '+' : '') + '$' + m.pnl.toFixed(2) : 'Pending';
-  const pctStr = m.pnlPct !== null ? (m.pnlPct >= 0 ? '+' : '') + m.pnlPct.toFixed(1) + '%' : '-';
-  const buyTime = m.startTime ? new Date(m.startTime).toLocaleString('en-US', { timeZone: 'Asia/Shanghai', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '-';
-  const multiBadge = m.multiOutcome ? `<span class="status-badge multi">${m.outcomeCount} sides</span>` : '';
-  const wLabel = walletLabel ? `<span style="font-size:10px;color:var(--text-dim);margin-right:4px">${walletLabel}</span>` : '';
+function buildMarketRow(market, rowId, isOpen) {
+  const statusClass = market.status.toLowerCase();
+  const statusIcon = market.status === "WON" ? "&#127942;" : market.status === "LOST" ? "&#128165;" : market.status === "SOLD" ? "&#128204;" : "&#9203;";
+  const statusText = market.status === "WON" ? "Won" : market.status === "LOST" ? "Lost" : market.status === "SOLD" ? "Sold" : "Open";
+  const view = marketViewStats(market);
+  const multiBadge = market.multiOutcome ? `<span class="status-badge multi">${market.outcomeCount} sides</span>` : "";
 
-  return `<tr onclick="toggleRow(${gi})" style="cursor:pointer">
-    <td><span class="expand-arrow ${isOpen ? 'open' : ''}">&#9654;</span></td>
-    <td><div class="expand-toggle">${wLabel}${m.title} ${multiBadge}</div></td>
-    <td>${m.outcome}</td>
+  return `<tr onclick="toggleRow(${rowId})" style="cursor:pointer">
+    <td><span class="expand-arrow ${isOpen ? "open" : ""}">&#9654;</span></td>
+    <td><div class="expand-toggle">${market.title} ${multiBadge}</div></td>
+    <td>${market.outcome}</td>
     <td><span class="status-badge ${statusClass}">${statusIcon} ${statusText}</span></td>
-    <td style="color:var(--text-dim);font-size:12px;white-space:nowrap">${buyTime}</td>
-    <td style="font-weight:600">${m.impliedProb}%</td>
-    <td>$${m.cost.toFixed(2)}</td>
-    <td>$${(m.sellRevenue + m.redeemRevenue).toFixed(2)}</td>
-    <td class="${pnlClass}" style="font-weight:600">${pnlStr}</td>
-    <td class="${pnlClass}">${pctStr}</td>
-    <td style="color:var(--text-dim)">${m.holdHours}h</td>
+    <td style="color:var(--text-dim);font-size:12px;white-space:nowrap">${view.time}</td>
+    <td style="font-weight:600">${market.impliedProb}%</td>
+    <td>${formatUsd(view.cost)}</td>
+    <td>${formatUsd(view.cashBack)}</td>
+    <td class="${valueClass(view.pnl)}" style="font-weight:600">${formatSignedUsd(view.pnl)}</td>
+    <td class="${valueClass(view.pnl)}">${formatPct(view.pnlPct)}</td>
+    <td style="color:var(--text-dim)">${Number(market.holdHours || 0).toFixed(1)}h</td>
   </tr>`;
 }
 
-function buildDetailRow(m, gi, isOpen) {
-  const trades = m.trades || [];
-  const breakdown = m.outcomeBreakdown || {};
-  const outcomes = Object.entries(breakdown);
-  let html = `<tr class="detail-row ${isOpen ? 'open' : ''}"><td colspan="11" class="detail-cell">`;
+function buildDetailRow(market, rowId, isOpen) {
+  const trades = market.trades || [];
+  const outcomes = Object.entries(market.outcomeBreakdown || {});
+  let html = `<tr class="detail-row ${isOpen ? "open" : ""}"><td colspan="11" class="detail-cell">`;
+
+  if (market.today && market.today.hasActivity) {
+    html += `<div class="detail-section"><div class="detail-section-title">&#9200; Today Summary</div><div class="detail-grid">
+      <div class="detail-stat"><div class="label">Buy</div><div class="val">${formatUsd(market.today.buyCost)}</div></div>
+      <div class="detail-stat"><div class="label">Cash Back</div><div class="val">${formatUsd(market.today.cashBack)}</div></div>
+      <div class="detail-stat"><div class="label">Today Net</div><div class="val" style="color:${market.today.net >= 0 ? "var(--green)" : "var(--red)"}">${formatSignedUsd(market.today.net)}</div></div>
+      <div class="detail-stat"><div class="label">Latest Today</div><div class="val">${formatShanghaiTimestamp(market.today.lastTimestamp)}</div></div>
+    </div></div>`;
+  }
 
   if (outcomes.length > 1) {
     html += `<div class="detail-section"><div class="detail-section-title">&#128204; Outcome Breakdown</div><div class="detail-grid">`;
-    for (const [name, od] of outcomes) {
-      html += `<div class="detail-stat"><div class="label"><span class="outcome-label">${name}</span></div><div class="val" style="color:${od.net >= 0 ? 'var(--green)' : 'var(--red)'}">Cost $${od.buyCost.toFixed(0)} → Rev $${(od.sellRevenue + od.redeemRevenue).toFixed(0)}<br>Net ${od.net >= 0 ? '+' : ''}$${od.net.toFixed(2)}</div></div>`;
+    for (const [name, outcome] of outcomes) {
+      html += `<div class="detail-stat"><div class="label"><span class="outcome-label">${name}</span></div><div class="val" style="color:${outcome.totalPnl >= 0 ? "var(--green)" : "var(--red)"}">Buy ${formatUsd(outcome.buyCost, 0)} -> Net ${formatSignedUsd(outcome.totalPnl)}</div></div>`;
     }
-    html += '</div></div>';
+    html += "</div></div>";
   }
 
   html += `<div class="detail-section"><div class="detail-section-title">&#128202; Summary</div><div class="detail-grid">
-    <div class="detail-stat"><div class="label">Buys</div><div class="val">${m.buyCount}</div></div>
-    <div class="detail-stat"><div class="label">Sells</div><div class="val">${m.sellCount}</div></div>
-    ${m.redeemCount > 0 ? `<div class="detail-stat"><div class="label">Redeems</div><div class="val">${m.redeemCount}</div></div>` : ''}
-    <div class="detail-stat"><div class="label">Total Cost</div><div class="val">$${m.cost.toFixed(2)}</div></div>
-    <div class="detail-stat"><div class="label">Sell Rev</div><div class="val">$${m.sellRevenue.toFixed(2)}</div></div>
-    ${m.redeemRevenue > 0 ? `<div class="detail-stat"><div class="label">Redeem Rev</div><div class="val" style="color:var(--blue)">$${m.redeemRevenue.toFixed(2)}</div></div>` : ''}
-    <div class="detail-stat"><div class="label">Avg Price</div><div class="val">${m.avgBuyPrice.toFixed(4)} (${m.impliedProb}%)</div></div>
+    <div class="detail-stat"><div class="label">Buys</div><div class="val">${market.buyCount}</div></div>
+    <div class="detail-stat"><div class="label">Sells</div><div class="val">${market.sellCount}</div></div>
+    <div class="detail-stat"><div class="label">Redeems</div><div class="val">${market.redeemCount}</div></div>
+    <div class="detail-stat"><div class="label">Buy Cost</div><div class="val">${formatUsd(market.cost)}</div></div>
+    <div class="detail-stat"><div class="label">Cash Back</div><div class="val">${formatUsd(market.cashBack)}</div></div>
+    <div class="detail-stat"><div class="label">Current Value</div><div class="val" style="color:var(--blue)">${formatUsd(market.currentValue)}</div></div>
+    <div class="detail-stat"><div class="label">Realized P&amp;L</div><div class="val" style="color:${market.realizedPnl >= 0 ? "var(--green)" : "var(--red)"}">${formatSignedUsd(market.realizedPnl)}</div></div>
+    <div class="detail-stat"><div class="label">Position P&amp;L</div><div class="val" style="color:${market.positionPnl >= 0 ? "var(--green)" : "var(--red)"}">${formatSignedUsd(market.positionPnl)}</div></div>
+    <div class="detail-stat"><div class="label">Total P&amp;L</div><div class="val" style="color:${market.pnl >= 0 ? "var(--green)" : "var(--red)"}">${formatSignedUsd(market.pnl)}</div></div>
+    <div class="detail-stat"><div class="label">Last Activity</div><div class="val">${formatShanghaiTimestamp(market.lastTradeTimestamp)}</div></div>
+    <div class="detail-stat"><div class="label">Avg Price</div><div class="val">${Number(market.avgBuyPrice || 0).toFixed(4)} (${market.impliedProb}%)</div></div>
   </div></div>`;
 
   if (trades.length > 0) {
-    // Merge consecutive trades with same type + outcome + price
     const mergedTrades = [];
-    for (const t of trades) {
-      const key = `${t.type}_${t.outcome}_${t.price}`;
+    for (const trade of trades) {
+      const key = `${trade.type}_${trade.outcome}_${trade.price}`;
       const last = mergedTrades[mergedTrades.length - 1];
       if (last && last._mergeKey === key) {
-        last.size = (parseFloat(last.size) + parseFloat(t.size)).toFixed(2);
-        last.usdc = (parseFloat(last.usdc) + parseFloat(t.usdc)).toFixed(2);
-        last.count++;
-        last.endTime = t.time;
-        if (t.timestamp > last.endTimestamp) last.endTimestamp = t.timestamp;
+        last.size = (Number(last.size) + Number(trade.size)).toFixed(2);
+        last.usdc = (Number(last.usdc) + Number(trade.usdc)).toFixed(2);
+        last.count += 1;
+        last.endTime = trade.time;
+        last.endTimestamp = Math.max(last.endTimestamp, trade.timestamp);
       } else {
         mergedTrades.push({
-          _mergeKey: key, type: t.type, outcome: t.outcome,
-          size: t.size, price: t.price, usdc: t.usdc,
-          time: t.time, timestamp: t.timestamp,
-          endTime: t.time, endTimestamp: t.timestamp,
+          _mergeKey: key,
+          type: trade.type,
+          outcome: trade.outcome,
+          size: Number(trade.size).toFixed(2),
+          price: Number(trade.price).toFixed(4),
+          usdc: Number(trade.usdc).toFixed(2),
+          time: trade.time,
+          endTime: trade.time,
+          endTimestamp: trade.timestamp,
           count: 1,
         });
       }
     }
-    const tradeCount = trades.length;
-    const mergedCount = mergedTrades.length;
-    const label = tradeCount !== mergedCount ? `(${mergedCount} merged from ${tradeCount})` : `(${tradeCount})`;
+
+    const label = mergedTrades.length !== trades.length
+      ? `(${mergedTrades.length} merged from ${trades.length})`
+      : `(${trades.length})`;
     html += `<div class="detail-section"><div class="detail-section-title">&#128203; All Trades ${label}</div><table class="trade-table"><thead><tr><th>#</th><th>Type</th><th>Outcome</th><th>Size</th><th>Price</th><th>USDC</th><th>Time</th></tr></thead><tbody>`;
-    for (let i = 0; i < mergedTrades.length; i++) {
-      const t = mergedTrades[i];
-      const multiLabel = t.count > 1 ? ` <span style="color:var(--text-dim);font-size:10px">×${t.count}</span>` : '';
-      const timeStr = t.count > 1 && t.endTime !== t.time
-        ? `${t.time} ~ ${t.endTime}` : t.time;
-      html += `<tr><td style="color:var(--text-dim)">${i+1}</td><td><span class="trade-type ${t.type.toLowerCase()}">${t.type}</span>${multiLabel}</td><td>${t.outcome}</td><td>${t.size}</td><td>${t.price}</td><td style="color:${t.type==='BUY'?'var(--red)':'var(--green)'}">$${t.usdc}</td><td style="color:var(--text-dim);white-space:nowrap">${timeStr}</td></tr>`;
+    for (let index = 0; index < mergedTrades.length; index += 1) {
+      const trade = mergedTrades[index];
+      const multiLabel = trade.count > 1 ? ` <span style="color:var(--text-dim);font-size:10px">x${trade.count}</span>` : "";
+      const timeRange = trade.count > 1 && trade.endTime !== trade.time ? `${trade.time} ~ ${trade.endTime}` : trade.time;
+      html += `<tr><td style="color:var(--text-dim)">${index + 1}</td><td><span class="trade-type ${trade.type.toLowerCase()}">${trade.type}</span>${multiLabel}</td><td>${trade.outcome}</td><td>${trade.size}</td><td>${trade.price}</td><td style="color:${trade.type === "BUY" ? "var(--red)" : "var(--green)"}">${formatUsd(trade.usdc)}</td><td style="color:var(--text-dim);white-space:nowrap">${timeRange}</td></tr>`;
     }
-    html += '</tbody></table></div>';
+    html += "</tbody></table></div>";
   }
 
-  html += '</td></tr>';
+  html += "</td></tr>";
   return html;
 }
 
-function toggleRow(idx) { expandedRows.has(idx) ? expandedRows.delete(idx) : expandedRows.add(idx); renderCurrentView(); }
+function toggleRow(id) {
+  if (expandedRows.has(id)) expandedRows.delete(id);
+  else expandedRows.add(id);
+  renderCurrentView();
+}
 
 function renderTable(markets) {
-  const tbody = document.getElementById('marketTable');
-  const filtered = currentFilter === 'all' ? markets : markets.filter(m => m.status === currentFilter);
-  let html = '';
-  filtered.forEach((m, fi) => {
-    const gi = markets.indexOf(m);
-    const isOpen = expandedRows.has(gi);
-    html += buildMarketRow(m, gi, isOpen, null);
-    html += buildDetailRow(m, gi, isOpen);
+  const tbody = document.getElementById("marketTable");
+  const filtered = sortMarketsForDisplay((markets || []).filter(marketMatchesFilter));
+  let html = "";
+
+  filtered.forEach((market, index) => {
+    const rowId = `${market.conditionId}-${index}`;
+    const isOpen = expandedRows.has(rowId);
+    html += buildMarketRow(market, JSON.stringify(rowId), isOpen);
+    html += buildDetailRow(market, JSON.stringify(rowId), isOpen);
   });
+
+  if (!html) {
+    html = `<tr><td colspan="11" style="text-align:center;color:var(--text-dim)">No markets match the current filter.</td></tr>`;
+  }
+
   tbody.innerHTML = html;
 }
 
 function filterTable(filter, el) {
   currentFilter = filter;
-  document.querySelectorAll('#statusTabs .tab').forEach(t => t.classList.remove('active'));
-  if (el) el.classList.add('active');
+  document.querySelectorAll("#statusTabs .tab").forEach(tab => tab.classList.remove("active"));
+  if (el) el.classList.add("active");
+  expandedRows.clear();
   renderCurrentView();
 }
 
 function renderDailyChart(dailyData) {
-  const ctx = document.getElementById('dailyChart').getContext('2d');
-  const labels = dailyData.map(d => d.date.slice(5));
-  const outData = dailyData.map(d => -d.cost);
-  const inData = dailyData.map(d => d.return);
-  let cumPnL = 0;
-  const cumData = dailyData.map(d => { cumPnL += d.net; return cumPnL; });
+  const ctx = document.getElementById("dailyChart").getContext("2d");
+  const labels = dailyData.map(day => day.date.slice(5));
+  const buyData = dailyData.map(day => -Number(day.buyCost || 0));
+  const cashBackData = dailyData.map(day => Number(day.cashBack || 0));
+  const externalData = dailyData.map(day => Number(day.externalNet || 0));
+  let cumulative = 0;
+  const cumulativeData = dailyData.map(day => {
+    cumulative += Number(day.net || 0);
+    return cumulative;
+  });
+
   if (dailyChart) dailyChart.destroy();
   dailyChart = new Chart(ctx, {
-    type: 'bar', data: { labels, datasets: [
-      { label: 'Cost', data: outData, backgroundColor: 'rgba(239,68,68,0.6)', borderRadius: 4, stack: 'flow' },
-      { label: 'Return', data: inData, backgroundColor: 'rgba(16,185,129,0.6)', borderRadius: 4, stack: 'flow' },
-      { label: 'Cumulative P&L', data: cumData, type: 'line', borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#3b82f6' }
-    ]},
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { color: '#64748b', usePointStyle: true, pointStyle: 'circle', padding: 16 } } }, scales: { x: { stacked: true, grid: { color: 'rgba(30,42,69,0.5)' }, ticks: { color: '#64748b' } }, y: { stacked: true, grid: { color: 'rgba(30,42,69,0.5)' }, ticks: { color: '#64748b', callback: v => '$' + v } } } }
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        { label: "Buy", data: buyData, backgroundColor: "rgba(239,68,68,0.6)", borderRadius: 4, stack: "flow" },
+        { label: "Cash Back", data: cashBackData, backgroundColor: "rgba(16,185,129,0.6)", borderRadius: 4, stack: "flow" },
+        { label: "Non-trade", data: externalData, backgroundColor: "rgba(59,130,246,0.6)", borderRadius: 4, stack: "flow" },
+        { label: "Cumulative P&L", data: cumulativeData, type: "line", borderColor: "#f59e0b", backgroundColor: "rgba(245,158,11,0.12)", fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: "#f59e0b" },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: "top",
+          labels: { color: "#64748b", usePointStyle: true, pointStyle: "circle", padding: 16 },
+        },
+      },
+      scales: {
+        x: { stacked: true, grid: { color: "rgba(30,42,69,0.5)" }, ticks: { color: "#64748b" } },
+        y: { stacked: true, grid: { color: "rgba(30,42,69,0.5)" }, ticks: { color: "#64748b", callback: value => "$" + value } },
+      },
+    },
   });
 }
 
-function renderPieChart(s) {
-  const ctx = document.getElementById('pieChart').getContext('2d');
+function renderPieChart(summary) {
+  const ctx = document.getElementById("pieChart").getContext("2d");
   if (pieChart) pieChart.destroy();
-  pieChart = new Chart(ctx, { type: 'doughnut', data: { labels: ['Won','Lost','Sold','Holding'], datasets: [{ data: [s.wonCount, s.lostCount, s.soldCount, s.holdCount], backgroundColor: ['#10b981','#ef4444','#3b82f6','#f97316'], borderWidth: 0, hoverOffset: 8 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'bottom', labels: { color: '#64748b', usePointStyle: true, pointStyle: 'circle', padding: 16 } } } } });
+  pieChart = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: ["Won", "Lost", "Sold", "Holding"],
+      datasets: [{
+        data: [summary.wonCount, summary.lostCount, summary.soldCount, summary.holdCount],
+        backgroundColor: ["#10b981", "#ef4444", "#3b82f6", "#f97316"],
+        borderWidth: 0,
+        hoverOffset: 8,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: "65%",
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: { color: "#64748b", usePointStyle: true, pointStyle: "circle", padding: 16 },
+        },
+      },
+    },
+  });
 }
 
-function renderDailyPnlTable(dailyData, positions) {
-  const tbody = document.getElementById('dailyPnlBody');
-  if (!dailyData || dailyData.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-dim)">No data</td></tr>'; return; }
-
-  // Sum current position value from all open positions
-  const positionValue = (positions || []).reduce((s, p) => s + (p.currentValue || 0), 0);
-
-  // Build rows with cumulative from earliest to latest, then reverse for display
-  const rows = [];
-  let cum = 0;
-  for (const d of dailyData) {
-    cum += d.net;
-    rows.push({ date: d.date, cost: d.cost, return: d.return, net: d.net, cum, trades: d.trades, redeems: d.redeems });
+function renderDailyPnlTable(dailyData, summary) {
+  const tbody = document.getElementById("dailyPnlBody");
+  if (!dailyData || dailyData.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-dim)">No data</td></tr>';
+    return;
   }
-  rows.reverse(); // newest first
 
-  let html = '';
-  for (const d of rows) {
-    const netColor = d.net >= 0 ? 'var(--green)' : 'var(--red)';
-    const cumColor = d.cum >= 0 ? 'var(--green)' : 'var(--red)';
-    const netSign = d.net >= 0 ? '+' : '';
-    const cumSign = d.cum >= 0 ? '+' : '';
+  const rows = [];
+  let cumulative = 0;
+  for (const day of dailyData) {
+    cumulative += Number(day.net || 0);
+    rows.push({ ...day, cumulative });
+  }
+  rows.reverse();
+
+  let html = "";
+  for (const day of rows) {
     html += `<tr>
-      <td style="white-space:nowrap">${d.date}</td>
-      <td style="color:var(--red)">$${d.cost.toFixed(2)}</td>
-      <td style="color:var(--green)">$${d.return.toFixed(2)}</td>
-      <td style="color:${netColor};font-weight:600">${netSign}$${d.net.toFixed(2)}</td>
-      <td style="color:${cumColor};font-weight:600">${cumSign}$${d.cum.toFixed(2)}</td>
-      <td style="color:var(--text-dim)">${d.trades}${d.redeems > 0 ? ' / ' + d.redeems + ' redeems' : ''}</td>
+      <td style="white-space:nowrap">${day.date}</td>
+      <td style="color:var(--red)">${formatUsd(day.buyCost)}</td>
+      <td style="color:var(--green)">${formatUsd(day.cashBack)}</td>
+      <td style="color:${Number(day.externalNet || 0) >= 0 ? "var(--blue)" : "var(--red)"}">${formatSignedUsd(day.externalNet)}</td>
+      <td style="color:${Number(day.net || 0) >= 0 ? "var(--green)" : "var(--red)"};font-weight:600">${formatSignedUsd(day.net)}</td>
+      <td style="color:${Number(day.cumulative || 0) >= 0 ? "var(--green)" : "var(--red)"};font-weight:600">${formatSignedUsd(day.cumulative)}</td>
+      <td style="color:var(--text-dim)">${day.trades} trades / ${day.redeems} redeems / ${day.externalEvents} non-trade</td>
     </tr>`;
   }
 
-  // Summary row: add open positions value to get true total P&L
-  const totalPnl = cum + positionValue;
-  const totalColor = totalPnl >= 0 ? 'var(--green)' : 'var(--red)';
-  const totalSign = totalPnl >= 0 ? '+' : '';
   html += `<tr style="border-top:2px solid var(--border)">
-    <td style="font-weight:700;white-space:nowrap">📊 Open Positions</td>
-    <td colspan="2" style="text-align:right;color:var(--blue)">$${positionValue.toFixed(2)}</td>
+    <td style="font-weight:700;white-space:nowrap">Positions</td>
+    <td colspan="2" style="text-align:right;color:var(--blue)">Open ${formatUsd(summary.openPositionValue)} · Claimable ${formatUsd(summary.claimableValue)}</td>
+    <td style="color:var(--blue)">${formatUsd(summary.accountValue)}</td>
+    <td style="color:${summary.netPnL >= 0 ? "var(--green)" : "var(--red)"};font-weight:700">${formatSignedUsd(summary.netPnL)}</td>
     <td></td>
-    <td style="color:${totalColor};font-weight:700">${totalSign}$${totalPnl.toFixed(2)}</td>
-    <td style="color:var(--text-dim)">Total P&L</td>
+    <td style="color:var(--text-dim)">Current position value / total net P&amp;L</td>
   </tr>`;
 
   tbody.innerHTML = html;
 }
 
 function renderPnlChart(markets) {
-  const ctx = document.getElementById('pnlChart').getContext('2d');
-  const resolved = markets.filter(m => m.pnl !== null);
+  const ctx = document.getElementById("pnlChart").getContext("2d");
+  const sorted = [...markets].sort((a, b) => Math.abs(b.pnl || 0) - Math.abs(a.pnl || 0)).slice(0, 25);
   if (pnlChart) pnlChart.destroy();
-  const labelFn = ctx => { const m = resolved[ctx.dataIndex]; return m.title.length > 25 ? m.title.substring(0,25)+'...' : m.title; };
+
   pnlChart = new Chart(ctx, {
-    type: 'bar', data: { labels: resolved.map(m => m.title.length > 25 ? m.title.substring(0,25)+'...' : m.title), datasets: [{ label: 'P&L ($)', data: resolved.map(m => m.pnl), backgroundColor: resolved.map(m => m.pnl >= 0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)'), borderRadius: 4 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => { const m = resolved[ctx.dataIndex]; return (m.pnl>=0?'+':'')+'$'+m.pnl.toFixed(2)+' ('+(m.pnlPct>=0?'+':'')+m.pnlPct.toFixed(1)+'%)'; } } } }, scales: { x: { grid: { display: false }, ticks: { color: '#64748b', maxRotation: 45, font: { size: 10 } } }, y: { grid: { color: 'rgba(30,42,69,0.5)' }, ticks: { color: '#64748b', callback: v => (v>=0?'+':'')+'$'+v } } } }
+    type: "bar",
+    data: {
+      labels: sorted.map(market => market.title.length > 24 ? market.title.slice(0, 24) + "..." : market.title),
+      datasets: [{
+        label: "P&L ($)",
+        data: sorted.map(market => market.pnl),
+        backgroundColor: sorted.map(market => market.pnl >= 0 ? "rgba(16,185,129,0.7)" : "rgba(239,68,68,0.7)"),
+        borderRadius: 4,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const market = sorted[ctx.dataIndex];
+              return `${formatSignedUsd(market.pnl)} (${formatPct(market.pnlPct)})`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: "#64748b", maxRotation: 45, font: { size: 10 } } },
+        y: { grid: { color: "rgba(30,42,69,0.5)" }, ticks: { color: "#64748b", callback: value => (value >= 0 ? "+" : "") + "$" + value } },
+      },
+    },
   });
 }
 
