@@ -92,6 +92,10 @@ function formatShanghaiTimestamp(ts) {
   });
 }
 
+function fmtTime(ts) {
+  return formatShanghaiTimestamp(ts);
+}
+
 function shanghaiDate(ts) {
   return new Date(ts * 1000).toLocaleDateString("sv-SE", {
     timeZone: SHANGHAI_TZ,
@@ -1063,99 +1067,100 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL || "";
 const LOOKBACK_MINUTES = parseInt(process.env.LOOKBACK_MINUTES || "10", 10);
 const NOTIFY_INTERVAL_MS = parseInt(process.env.NOTIFY_INTERVAL_MS || "300000", 10);
 
+function loadNotifyState() {
+  try { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, "notify_state.json"), "utf-8")); }
+  catch { return { lastSentTimestamps: {} }; }
+}
+
+function saveNotifyState(state) {
+  fs.writeFileSync(path.join(DATA_DIR, "notify_state.json"), JSON.stringify(state, null, 2));
+}
+
 async function runNotification() {
   if (!WEBHOOK_URL || WALLETS.length === 0) return;
-
   try {
     console.log("[notify] Checking all wallets...");
-    const allLines = [];
+    let allLines = [];
 
     for (const wallet of WALLETS) {
       const shortAddr = wallet.slice(0, 6) + "..." + wallet.slice(-4);
       const alias = ALIASES[wallet] || null;
 
+      // Fetch recent activity for trades, and current positions for sell ratio calculation
       const [recentActivity, positions] = await Promise.all([
-        apiGet(buildDataApiUrl("/activity", { user: wallet, limit: 200 })).catch(() => []),
-        apiGet(buildDataApiUrl("/positions", { user: wallet, limit: 500 })).catch(() => []),
+        apiGet(`https://data-api.polymarket.com/activity?user=${wallet}&limit=200`).catch(() => []),
+        apiGet(`https://data-api.polymarket.com/positions?user=${wallet}&limit=500`).catch(() => []),
       ]);
-
-      const pseudonym = Array.isArray(recentActivity)
-        ? recentActivity.find(item => item.pseudonym)?.pseudonym
-        : null;
+      const pseudonym = recentActivity.find(a => a.pseudonym)?.pseudonym;
       const label = alias || pseudonym || shortAddr;
 
+      // Build map: current position size per title+outcome (positions API shows post-trade state)
       const positionMap = {};
       if (Array.isArray(positions)) {
-        for (const position of positions) {
-          const key = `${position.title}_${position.outcome}`;
-          positionMap[key] = toNumber(position.size || position.amount);
+        for (const p of positions) {
+          const key = `${p.title}_${p.outcome}`;
+          positionMap[key] = parseFloat(p.size || p.amount || 0);
         }
       }
 
       const now = Math.floor(Date.now() / 1000);
       const cutoff = now - LOOKBACK_MINUTES * 60;
       const trades = (Array.isArray(recentActivity) ? recentActivity : [])
-        .filter(item => (item.type === "TRADE" || item.type === "REDEEM") && toNumber(item.timestamp) >= cutoff)
-        .sort((a, b) => toNumber(b.timestamp) - toNumber(a.timestamp));
+        .filter(a => (a.type === "TRADE" || a.type === "REDEEM") && (a.timestamp || 0) >= cutoff)
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
       if (trades.length === 0) continue;
 
+      // Merge consecutive trades with same title + outcome + side + unitCost (rounded to 2 decimals, diff < 0.01)
       const merged = [];
-      for (const trade of trades) {
-        const unitCost = toNumber(trade.size) > 0
-          ? toNumber(trade.usdcSize) / toNumber(trade.size)
+      for (const t of trades) {
+        const unitCost = parseFloat(t.size || 0) > 0
+          ? parseFloat(t.usdcSize || 0) / parseFloat(t.size || 0)
           : 0;
-        const tradeOutcome = normalizeOutcome(trade.outcome, trade.type === "REDEEM" ? "Resolved" : "?");
-        const key = `${trade.title}_${tradeOutcome}_${trade.side || "REDEEM"}_${unitCost.toFixed(2)}`;
+        const unitCostKey = unitCost.toFixed(2);
+        const key = `${t.title}_${t.outcome}_${t.side || "REDEEM"}_${unitCostKey}`;
         const last = merged[merged.length - 1];
 
         if (last && last._mergeKey === key) {
-          const mergedSize = toNumber(last.size) + toNumber(trade.size);
-          const mergedUsdc = toNumber(last.usdc) + toNumber(trade.usdcSize);
-          last.size = mergedSize.toFixed(1);
-          last.usdc = mergedUsdc.toFixed(2);
-          last.unitCost = mergedSize > 0 ? (mergedUsdc / mergedSize).toFixed(4) : "0.0000";
-          last.count += 1;
-          last.timestamp = Math.max(last.timestamp, toNumber(trade.timestamp));
-          last.time = formatShanghaiTimestamp(last.timestamp);
+          const oldSize = parseFloat(last.size);
+          const oldUsdc = parseFloat(last.usdc);
+          const addSize = parseFloat(t.size || 0);
+          const addUsdc = parseFloat(t.usdcSize || 0);
+          const newSize = oldSize + addSize;
+          const newUsdc = oldUsdc + addUsdc;
+          last.size = newSize.toFixed(1);
+          last.usdc = newUsdc.toFixed(2);
+          last.unitCost = newSize > 0 ? (newUsdc / newSize).toFixed(4) : "0.0000";
+          last.count = (last.count || 1) + 1;
         } else {
           merged.push({
             _mergeKey: key,
-            title: trade.title,
-            outcome: tradeOutcome,
-            side: trade.side || "REDEEM",
-            type: trade.type,
-            size: toNumber(trade.size).toFixed(1),
+            title: t.title, outcome: t.outcome,
+            side: t.side || "REDEEM", type: t.type,
+            size: parseFloat(t.size || 0).toFixed(1),
             unitCost: unitCost.toFixed(4),
-            usdc: toNumber(trade.usdcSize).toFixed(2),
-            time: formatShanghaiTimestamp(toNumber(trade.timestamp)),
-            timestamp: toNumber(trade.timestamp),
+            usdc: parseFloat(t.usdcSize || 0).toFixed(2),
+            time: fmtTime(t.timestamp),
             count: 1,
           });
         }
       }
 
-      for (const item of merged) {
-        const typeLabel = item.type === "REDEEM"
-          ? "赎回"
-          : item.side === "BUY"
-            ? "买入"
-            : "卖出";
-        const emoji = item.type === "REDEEM"
-          ? "🏆"
-          : item.side === "BUY"
-            ? "🟢"
-            : "🔴";
-        const countLabel = item.count > 1 ? ` ×${item.count}` : "";
-        let line = `${emoji} [${label}] **${item.title || "?"}** · ${item.outcome || "?"}\n${typeLabel} ${item.size}份${countLabel} · $${item.usdc} · 单价 $${item.unitCost} · ${item.time}`;
+      for (const m of merged) {
+        const type = m.type === "REDEEM" ? "赎回" : m.side === "BUY" ? "买入" : "卖出";
+        const emoji = m.type === "REDEEM" ? "🏆" : m.side === "BUY" ? "🟢" : "🔴";
+        const countStr = m.count > 1 ? ` ×${m.count}` : "";
+        const unitCostStr = `单价 $${m.unitCost}`;
+        let line = `${emoji} [${label}] **${m.title || "?"}** · ${m.outcome || "?"}\n${type} ${m.size}份${countStr} · $${m.usdc} · ${unitCostStr} · ${m.time}`;
 
-        if (item.side === "SELL") {
-          const posKey = `${item.title}_${item.outcome}`;
+        // For sells: show ratio of sold shares vs pre-sell holdings (current position + sold amount)
+        if (m.side === "SELL") {
+          const posKey = `${m.title}_${m.outcome}`;
           const currentSize = positionMap[posKey] || 0;
-          const soldSize = toNumber(item.size);
+          const soldSize = parseFloat(m.size);
           const preSellSize = currentSize + soldSize;
           if (preSellSize > 0) {
-            const ratio = ((soldSize / preSellSize) * 100).toFixed(1);
+            const ratio = (soldSize / preSellSize * 100).toFixed(1);
             line += ` · 卖出${ratio}%`;
           }
         }
@@ -1164,36 +1169,23 @@ async function runNotification() {
       }
     }
 
-    if (allLines.length === 0) {
-      console.log("[notify] No trades found.");
-      return;
-    }
+    if (allLines.length === 0) { console.log("[notify] No trades found."); return; }
 
     const header = `📊 蒙多的 Polymarket 交易播报（${WALLETS.length}个钱包 · 近${LOOKBACK_MINUTES}分钟）`;
     const payload = {
       msg_type: "interactive",
       card: {
-        header: {
-          title: { tag: "plain_text", content: header },
-          template: "blue",
-        },
-        elements: [{
-          tag: "div",
-          text: { tag: "lark_md", content: allLines.join("\n\n") },
-        }],
+        header: { title: { tag: "plain_text", content: header }, template: "blue" },
+        elements: [{ tag: "div", text: { tag: "lark_md", content: allLines.join("\n\n") } }],
       },
     };
 
     const resp = await fetch(WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(15000),
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload), signal: AbortSignal.timeout(15000),
     });
     const result = await resp.json();
-    if (result.code !== 0) {
-      throw new Error(`Webhook: ${JSON.stringify(result)}`);
-    }
+    if (result.code !== 0) throw new Error(`Webhook: ${JSON.stringify(result)}`);
     console.log(`[notify] Sent: ${allLines.length} trades`);
   } catch (err) {
     console.error("[notify] Error:", err.message);
