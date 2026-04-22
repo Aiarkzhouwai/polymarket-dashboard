@@ -469,7 +469,7 @@ function summarizeMarket(market) {
     const redeemRevenue = outcome.redeems.reduce((sum, trade) => sum + toNumber(trade.usdc), 0);
 
     const currentBought = outcome.currentPositions.reduce((sum, position) => {
-      return sum + Math.max(toNumber(position.totalBought), toNumber(position.initialValue));
+      return sum + toNumber(position.initialValue);
     }, 0);
     const closedBought = outcome.closedPositions.reduce((sum, position) => {
       return sum + toNumber(position.totalBought);
@@ -841,7 +841,7 @@ async function fetchWalletData(wallet) {
   const totalBought = closedArray.reduce((sum, position) => {
     return sum + toNumber(position.totalBought);
   }, 0) + posArray.reduce((sum, position) => {
-    return sum + Math.max(toNumber(position.totalBought), toNumber(position.initialValue));
+    return sum + toNumber(position.initialValue);
   }, 0);
   const openPositionValue = posArray
     .filter(position => !position.redeemable)
