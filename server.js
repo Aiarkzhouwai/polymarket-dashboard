@@ -34,6 +34,11 @@ const POLYGON_USDCE = {
   address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
   decimals: 6,
 };
+const POLYGON_PUSD = {
+  symbol: "PUSD",
+  address: "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB",
+  decimals: 6,
+};
 
 const EXTERNAL_INFLOW_TYPES = new Set([
   "REWARD",
@@ -208,11 +213,12 @@ async function fetchPolygonStablecoinBalances(wallet) {
     source: "wallet",
     usdc: 0,
     usdce: 0,
+    pusd: 0,
     total: 0,
   };
 
   for (const address of candidateAddresses) {
-    const [usdcRaw, usdceRaw] = await Promise.all([
+    const [usdcRaw, usdceRaw, pusdRaw] = await Promise.all([
       rpcCall("eth_call", [{
         to: POLYGON_USDC.address,
         data: encodeBalanceOf(address),
@@ -221,11 +227,16 @@ async function fetchPolygonStablecoinBalances(wallet) {
         to: POLYGON_USDCE.address,
         data: encodeBalanceOf(address),
       }, "latest"]).catch(() => "0x0"),
+      rpcCall("eth_call", [{
+        to: POLYGON_PUSD.address,
+        data: encodeBalanceOf(address),
+      }, "latest"]).catch(() => "0x0"),
     ]);
 
     const usdc = formatTokenAmount(usdcRaw, POLYGON_USDC.decimals);
     const usdce = formatTokenAmount(usdceRaw, POLYGON_USDCE.decimals);
-    const total = usdc + usdce;
+    const pusd = formatTokenAmount(pusdRaw, POLYGON_PUSD.decimals);
+    const total = usdc + usdce + pusd;
 
     if (total > best.total) {
       best = {
@@ -233,6 +244,7 @@ async function fetchPolygonStablecoinBalances(wallet) {
         source: profile?.proxyWallet && profile.proxyWallet.toLowerCase() === address ? "proxyWallet" : "wallet",
         usdc: round(usdc, 2),
         usdce: round(usdce, 2),
+        pusd: round(pusd, 2),
         total: round(total, 2),
       };
     }
@@ -434,6 +446,29 @@ function aggregateDailyRows(dailyMap) {
     }));
 }
 
+function positionMarketValue(position) {
+  const currentValue = toNumber(position.currentValue);
+  const estimatedValue = toNumber(position.size) * toNumber(position.curPrice);
+  return Math.max(currentValue, estimatedValue, 0);
+}
+
+function positionEndTime(position) {
+  if (!position.endDate) return NaN;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(position.endDate)) {
+    return Date.parse(`${position.endDate}T23:59:59+08:00`);
+  }
+  return Date.parse(position.endDate);
+}
+
+function positionHasFinalValue(position) {
+  if (position.redeemable) return true;
+
+  const endTime = positionEndTime(position);
+  const ended = Number.isFinite(endTime) && endTime <= Date.now();
+  const curPrice = toNumber(position.curPrice);
+  return ended && (curPrice === 0 || curPrice === 1);
+}
+
 function summarizeMarket(market) {
   const allBuyTrades = [];
   const allSellTrades = [];
@@ -478,9 +513,6 @@ function summarizeMarket(market) {
       ? buyCostFromTrades
       : currentBought + closedBought;
 
-    const currentValue = outcome.currentPositions.reduce((sum, position) => {
-      return sum + toNumber(position.currentValue);
-    }, 0);
     const realizedPnl = outcome.currentPositions.reduce((sum, position) => {
       return sum + toNumber(position.realizedPnl);
     }, 0) + outcome.closedPositions.reduce((sum, position) => {
@@ -490,20 +522,16 @@ function summarizeMarket(market) {
       return sum + toNumber(position.cashPnl);
     }, 0);
 
-    const unresolvedPositions = outcome.currentPositions.filter(position => !position.redeemable);
-    const claimablePositions = outcome.currentPositions.filter(position => position.redeemable);
-    const openValue = unresolvedPositions.reduce((sum, position) => sum + toNumber(position.currentValue), 0);
-    const claimableValue = claimablePositions.reduce((sum, position) => {
-      const currentValue = toNumber(position.currentValue);
-      const estimatedRedeemValue = toNumber(position.size) * toNumber(position.curPrice);
-      return sum + Math.max(currentValue, estimatedRedeemValue, 0);
-    }, 0);
-    const openCostBasis = unresolvedPositions.reduce((sum, position) => {
+    const finalValuePositions = outcome.currentPositions.filter(positionHasFinalValue);
+    const openPositions = outcome.currentPositions.filter(position => !positionHasFinalValue(position));
+    const openValue = openPositions.reduce((sum, position) => sum + positionMarketValue(position), 0);
+    const claimableValue = finalValuePositions.reduce((sum, position) => sum + positionMarketValue(position), 0);
+    const openCostBasis = openPositions.reduce((sum, position) => {
       return sum + toNumber(position.initialValue);
     }, 0);
     const cashBack = sellRevenue + redeemRevenue;
     const totalPnlFromFlows = cashBack + openValue + claimableValue - bought;
-    const realizedPnlValue = unresolvedPositions.length === 0
+    const realizedPnlValue = openPositions.length === 0
       ? totalPnlFromFlows
       : cashBack - bought;
     const positionPnlValue = totalPnlFromFlows - realizedPnlValue;
@@ -521,8 +549,8 @@ function summarizeMarket(market) {
     buyCount += outcome.buys.length;
     sellCount += outcome.sells.length;
     redeemCount += outcome.redeems.length;
-    unresolvedPositionCount += unresolvedPositions.length;
-    resolvedPositionCount += claimablePositions.length + outcome.closedPositions.length;
+    unresolvedPositionCount += openPositions.length;
+    resolvedPositionCount += finalValuePositions.length + outcome.closedPositions.length;
 
     today.buyCost += outcome.today.buyCost;
     today.sellRevenue += outcome.today.sellRevenue;
@@ -692,6 +720,7 @@ async function fetchWalletData(wallet) {
       source: "wallet",
       usdc: 0,
       usdce: 0,
+      pusd: 0,
       total: 0,
     })),
   ]);
@@ -852,7 +881,7 @@ async function fetchWalletData(wallet) {
   const openPositionValue = marketResults.reduce((sum, market) => sum + toNumber(market.openValue), 0);
   const claimableValue = marketResults.reduce((sum, market) => sum + toNumber(market.claimableValue), 0);
   const openCostBasis = marketResults.reduce((sum, market) => sum + toNumber(market.openCostBasis), 0);
-  const openPositions = posArray.filter(position => !position.redeemable);
+  const openPositions = posArray.filter(position => !positionHasFinalValue(position));
 
   const dailyPnL = aggregateDailyRows(dailyPnLMap);
   const todaySummary = dailyPnL.find(row => row.date === todayKey) || emptyDailyRow(todayKey);
@@ -895,6 +924,7 @@ async function fetchWalletData(wallet) {
       openCostBasis: round(openCostBasis, 2),
       walletUsdc: stablecoinBalances.usdc,
       walletUsdce: stablecoinBalances.usdce,
+      walletPusd: stablecoinBalances.pusd,
       walletStablecoinTotal: stablecoinBalances.total,
       walletStablecoinAddress: stablecoinBalances.address,
       walletStablecoinSource: stablecoinBalances.source,
@@ -980,6 +1010,7 @@ async function fetchAllData() {
           openCostBasis: 0,
           walletUsdc: 0,
           walletUsdce: 0,
+          walletPusd: 0,
           walletStablecoinTotal: 0,
           walletStablecoinAddress: wallet,
           walletStablecoinSource: "wallet",
@@ -1031,6 +1062,7 @@ async function fetchAllData() {
   let combinedActivePositions = 0;
   let combinedWalletUsdc = 0;
   let combinedWalletUsdce = 0;
+  let combinedWalletPusd = 0;
   let combinedWalletStablecoinTotal = 0;
 
   for (const [wallet, walletData] of Object.entries(results)) {
@@ -1058,6 +1090,7 @@ async function fetchAllData() {
     combinedActivePositions += summary.activePositions;
     combinedWalletUsdc += summary.walletUsdc;
     combinedWalletUsdce += summary.walletUsdce;
+    combinedWalletPusd += summary.walletPusd;
     combinedWalletStablecoinTotal += summary.walletStablecoinTotal;
 
     walletSummaries.push({
@@ -1080,6 +1113,7 @@ async function fetchAllData() {
       todayNet: summary.today.net,
       walletUsdc: summary.walletUsdc,
       walletUsdce: summary.walletUsdce,
+      walletPusd: summary.walletPusd,
       walletStablecoinTotal: summary.walletStablecoinTotal,
       walletStablecoinAddress: summary.walletStablecoinAddress,
       walletStablecoinSource: summary.walletStablecoinSource,
@@ -1143,6 +1177,7 @@ async function fetchAllData() {
         claimableValue: round(combinedClaimableValue, 2),
         walletUsdc: round(combinedWalletUsdc, 2),
         walletUsdce: round(combinedWalletUsdce, 2),
+        walletPusd: round(combinedWalletPusd, 2),
         walletStablecoinTotal: round(combinedWalletStablecoinTotal, 2),
         activePositions: combinedActivePositions,
         today: {
