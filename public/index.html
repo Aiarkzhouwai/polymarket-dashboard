@@ -146,7 +146,7 @@
   <div class="kpi-grid" id="kpiGrid"></div>
   <div id="walletDetailSection">
     <div class="charts-grid">
-      <div class="chart-card"><h3>&#128200; Daily Trading Cash Flow</h3><div class="chart-container"><canvas id="dailyChart"></canvas></div></div>
+      <div class="chart-card"><h3>&#128200; Daily Trading P&amp;L (MTM)</h3><div class="chart-container"><canvas id="dailyChart"></canvas></div></div>
       <div class="chart-card"><h3>&#128202; Market Status</h3><div class="chart-container"><canvas id="pieChart"></canvas></div></div>
     </div>
     <div class="charts-grid" style="grid-template-columns:1fr;">
@@ -156,11 +156,11 @@
       <h3>&#128197; Daily P&amp;L Summary</h3>
       <div style="overflow-x:auto">
         <table class="trade-table" id="dailyPnlTable" style="margin-top:8px">
-          <thead><tr><th>Date</th><th>Buy</th><th>Cash Back</th><th>Non-trade</th><th>Net</th><th>Cumulative</th><th>Events</th></tr></thead>
+          <thead><tr><th>Date</th><th>Buy</th><th>Cash Back</th><th>Current Value</th><th>Non-trade</th><th>MTM Net</th><th>Cumulative</th><th>Events</th></tr></thead>
           <tbody id="dailyPnlBody"></tbody>
         </table>
       </div>
-      <div class="table-note">Non-trade currently includes rewards, rebates, and any non-TRADE / REDEEM activity returned by Polymarket.</div>
+      <div class="table-note">MTM Net = Cash Back + Current Value - Buy + Non-trade. Non-trade currently includes rewards, rebates, and any non-TRADE / REDEEM activity returned by Polymarket.</div>
     </div>
     <div class="table-card">
       <h3>&#128203; Market Details <span style="font-weight:400;color:var(--text-dim);font-size:12px;margin-left:8px">Sorted by latest activity in China time</span></h3>
@@ -339,7 +339,7 @@ function renderCombinedView() {
 
   document.getElementById("kpiGrid").innerHTML = `
     <div class="kpi-card"><div class="kpi-label">Net P&amp;L / 总盈亏</div><div class="kpi-value ${summary.netPnL >= 0 ? "green" : "red"}">${formatSignedUsd(summary.netPnL)}</div><div class="kpi-sub">Trading 交易盈亏 ${formatSignedUsd(summary.totalTradingPnL)} · Non-trade 非交易 ${formatSignedUsd(summary.externalNet)}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Today / 今日</div><div class="kpi-value ${summary.today.net >= 0 ? "green" : "red"}">${formatSignedUsd(summary.today.net)}</div><div class="kpi-sub">Buy 买入 ${formatUsd(summary.today.buyCost)} · Cash back 回款 ${formatUsd(summary.today.cashBack)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Today MTM / 今日含持仓</div><div class="kpi-value ${summary.today.net >= 0 ? "green" : "red"}">${formatSignedUsd(summary.today.net)}</div><div class="kpi-sub">Buy 买入 ${formatUsd(summary.today.buyCost)} · Cash back 回款 ${formatUsd(summary.today.cashBack)} · Current Value 持仓 ${formatUsd(summary.today.positionValue)}</div></div>
     <div class="kpi-card"><div class="kpi-label">Capital Used / 累计投入</div><div class="kpi-value">${formatUsd(summary.totalBought, 0)}</div><div class="kpi-sub">Net ROI 总回报率 ${formatPct(summary.netPnLPct)}</div></div>
     <div class="kpi-card"><div class="kpi-label">Open Value / 持仓价值</div><div class="kpi-value" style="color:var(--blue)">${formatUsd(summary.openPositionValue + summary.claimableValue)}</div><div class="kpi-sub">Open 浮动持仓 ${formatUsd(summary.openPositionValue)} · Claimable/Settled 待领或已定价 ${formatUsd(summary.claimableValue)}</div></div>
     <div class="kpi-card"><div class="kpi-label">Wallet USDC + USDC.e + PUSD / 链上稳定币</div><div class="kpi-value" style="color:var(--blue)">${formatUsd(summary.walletStablecoinTotal)}</div><div class="kpi-sub">USDC ${formatUsd(summary.walletUsdc)} · USDC.e ${formatUsd(summary.walletUsdce)} · PUSD ${formatUsd(summary.walletPusd)} · ${summary.walletStablecoinSource === "proxyWallet" ? "proxy wallet 代理地址" : "wallet 主地址"}</div></div>
@@ -365,7 +365,7 @@ function renderSingleWalletView(wallet) {
   document.getElementById("walletOverview").style.display = "none";
   document.getElementById("kpiGrid").innerHTML = `
     <div class="kpi-card"><div class="kpi-label">Net P&amp;L / 总盈亏</div><div class="kpi-value ${summary.netPnL >= 0 ? "green" : "red"}">${formatSignedUsd(summary.netPnL)}</div><div class="kpi-sub">Trading 交易盈亏 ${formatSignedUsd(summary.totalTradingPnL)} · Non-trade 非交易 ${formatSignedUsd(summary.externalNet)}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Today / 今日</div><div class="kpi-value ${summary.today.net >= 0 ? "green" : "red"}">${formatSignedUsd(summary.today.net)}</div><div class="kpi-sub">Buy 买入 ${formatUsd(summary.today.buyCost)} · Cash back 回款 ${formatUsd(summary.today.cashBack)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Today MTM / 今日含持仓</div><div class="kpi-value ${summary.today.net >= 0 ? "green" : "red"}">${formatSignedUsd(summary.today.net)}</div><div class="kpi-sub">Buy 买入 ${formatUsd(summary.today.buyCost)} · Cash back 回款 ${formatUsd(summary.today.cashBack)} · Current Value 持仓 ${formatUsd(summary.today.positionValue)}</div></div>
     <div class="kpi-card"><div class="kpi-label">Realized P&amp;L / 已实现盈亏</div><div class="kpi-value ${summary.realizedTradingPnL >= 0 ? "green" : "red"}">${formatSignedUsd(summary.realizedTradingPnL)}</div><div class="kpi-sub">Closed positions 已结束仓位</div></div>
     <div class="kpi-card"><div class="kpi-label">Position P&amp;L / 持仓浮盈亏</div><div class="kpi-value ${summary.positionPnL >= 0 ? "green" : "red"}">${formatSignedUsd(summary.positionPnL)}</div><div class="kpi-sub">Only open positions 仅未结仓</div></div>
     <div class="kpi-card"><div class="kpi-label">Position Value / 持仓价值</div><div class="kpi-value" style="color:var(--blue)">${formatUsd(summary.openPositionValue + summary.claimableValue)}</div><div class="kpi-sub">Open 浮动持仓 ${formatUsd(summary.openPositionValue)} · Claimable/Settled 待领或已定价 ${formatUsd(summary.claimableValue)}</div></div>
@@ -521,6 +521,7 @@ function renderDailyChart(dailyData) {
   const labels = dailyData.map(day => day.date.slice(5));
   const buyData = dailyData.map(day => -Number(day.buyCost || 0));
   const cashBackData = dailyData.map(day => Number(day.cashBack || 0));
+  const positionValueData = dailyData.map(day => Number(day.positionValue || 0));
   const externalData = dailyData.map(day => Number(day.externalNet || 0));
   let cumulative = 0;
   const cumulativeData = dailyData.map(day => {
@@ -536,6 +537,7 @@ function renderDailyChart(dailyData) {
       datasets: [
         { label: "Buy", data: buyData, backgroundColor: "rgba(239,68,68,0.6)", borderRadius: 4, stack: "flow" },
         { label: "Cash Back", data: cashBackData, backgroundColor: "rgba(16,185,129,0.6)", borderRadius: 4, stack: "flow" },
+        { label: "Current Value", data: positionValueData, backgroundColor: "rgba(59,130,246,0.45)", borderRadius: 4, stack: "flow" },
         { label: "Non-trade", data: externalData, backgroundColor: "rgba(59,130,246,0.6)", borderRadius: 4, stack: "flow" },
         { label: "Cumulative P&L", data: cumulativeData, type: "line", borderColor: "#f59e0b", backgroundColor: "rgba(245,158,11,0.12)", fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: "#f59e0b" },
       ],
@@ -588,7 +590,7 @@ function renderPieChart(summary) {
 function renderDailyPnlTable(dailyData, summary) {
   const tbody = document.getElementById("dailyPnlBody");
   if (!dailyData || dailyData.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-dim)">No data</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-dim)">No data</td></tr>';
     return;
   }
 
@@ -606,6 +608,7 @@ function renderDailyPnlTable(dailyData, summary) {
       <td style="white-space:nowrap">${day.date}</td>
       <td style="color:var(--red)">${formatUsd(day.buyCost)}</td>
       <td style="color:var(--green)">${formatUsd(day.cashBack)}</td>
+      <td style="color:var(--blue)">${formatUsd(day.positionValue)}</td>
       <td style="color:${Number(day.externalNet || 0) >= 0 ? "var(--blue)" : "var(--red)"}">${formatSignedUsd(day.externalNet)}</td>
       <td style="color:${Number(day.net || 0) >= 0 ? "var(--green)" : "var(--red)"};font-weight:600">${formatSignedUsd(day.net)}</td>
       <td style="color:${Number(day.cumulative || 0) >= 0 ? "var(--green)" : "var(--red)"};font-weight:600">${formatSignedUsd(day.cumulative)}</td>
@@ -615,7 +618,7 @@ function renderDailyPnlTable(dailyData, summary) {
 
   html += `<tr style="border-top:2px solid var(--border)">
     <td style="font-weight:700;white-space:nowrap">Positions</td>
-    <td colspan="2" style="text-align:right;color:var(--blue)">Open ${formatUsd(summary.openPositionValue)} · Claimable ${formatUsd(summary.claimableValue)}</td>
+    <td colspan="3" style="text-align:right;color:var(--blue)">Open ${formatUsd(summary.openPositionValue)} · Claimable ${formatUsd(summary.claimableValue)}</td>
     <td style="color:var(--blue)">${formatUsd(summary.accountValue)}</td>
     <td style="color:${summary.netPnL >= 0 ? "var(--green)" : "var(--red)"};font-weight:700">${formatSignedUsd(summary.netPnL)}</td>
     <td></td>

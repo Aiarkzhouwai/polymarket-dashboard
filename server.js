@@ -286,11 +286,14 @@ function emptyDailyRow(date) {
     sellRevenue: 0,
     redeemRevenue: 0,
     cashBack: 0,
+    positionValue: 0,
     externalInflow: 0,
     externalOutflow: 0,
     externalNet: 0,
     tradingNet: 0,
+    tradingMtmNet: 0,
     net: 0,
+    cashNet: 0,
     trades: 0,
     redeems: 0,
     externalEvents: 0,
@@ -438,10 +441,13 @@ function aggregateDailyRows(dailyMap) {
       sellRevenue: round(row.sellRevenue, 2),
       redeemRevenue: round(row.redeemRevenue, 2),
       cashBack: round(row.cashBack, 2),
+      positionValue: round(row.positionValue, 2),
       externalInflow: round(row.externalInflow, 2),
       externalOutflow: round(row.externalOutflow, 2),
       externalNet: round(row.externalNet, 2),
       tradingNet: round(row.tradingNet, 2),
+      tradingMtmNet: round(row.tradingMtmNet !== undefined ? row.tradingMtmNet : row.tradingNet, 2),
+      cashNet: round(row.cashNet !== undefined ? row.cashNet : row.net, 2),
       net: round(row.net, 2),
     }));
 }
@@ -819,7 +825,9 @@ async function fetchWalletData(wallet) {
     daily.cashBack = daily.sellRevenue + daily.redeemRevenue;
     daily.externalNet = daily.externalInflow - daily.externalOutflow;
     daily.tradingNet = daily.cashBack - daily.buyCost;
-    daily.net = daily.tradingNet + daily.externalNet;
+    daily.tradingMtmNet = daily.tradingNet + daily.positionValue;
+    daily.cashNet = daily.tradingNet + daily.externalNet;
+    daily.net = daily.tradingMtmNet + daily.externalNet;
 
     if (!event.conditionId || (event.type !== "TRADE" && event.type !== "REDEEM")) {
       continue;
@@ -862,6 +870,16 @@ async function fetchWalletData(wallet) {
       .filter(market => Object.keys(market.outcomes).length > 0)
       .map(summarizeMarket),
   );
+  const todayPositionValue = marketResults
+    .filter(market => market.today?.hasActivity)
+    .reduce((sum, market) => sum + toNumber(market.currentValue), 0);
+  if (dailyPnLMap[todayKey]) {
+    const todayRow = dailyPnLMap[todayKey];
+    todayRow.positionValue = todayPositionValue;
+    todayRow.tradingMtmNet = todayRow.tradingNet + todayRow.positionValue;
+    todayRow.cashNet = todayRow.tradingNet + todayRow.externalNet;
+    todayRow.net = todayRow.tradingMtmNet + todayRow.externalNet;
+  }
 
   const wonMarkets = marketResults.filter(r => r.status === "WON");
   const lostMarkets = marketResults.filter(r => r.status === "LOST");
@@ -933,8 +951,11 @@ async function fetchWalletData(wallet) {
         date: todaySummary.date,
         buyCost: round(todaySummary.buyCost, 2),
         cashBack: round(todaySummary.cashBack, 2),
+        positionValue: round(todaySummary.positionValue, 2),
         tradingNet: round(todaySummary.tradingNet, 2),
+        tradingMtmNet: round(todaySummary.tradingMtmNet !== undefined ? todaySummary.tradingMtmNet : todaySummary.tradingNet, 2),
         externalNet: round(todaySummary.externalNet, 2),
+        cashNet: round(todaySummary.cashNet !== undefined ? todaySummary.cashNet : todaySummary.net, 2),
         net: round(todaySummary.net, 2),
         trades: todaySummary.trades,
         redeems: todaySummary.redeems,
@@ -1020,7 +1041,9 @@ async function fetchAllData() {
             buyCost: 0,
             cashBack: 0,
             tradingNet: 0,
+            tradingMtmNet: 0,
             externalNet: 0,
+            cashNet: 0,
             net: 0,
             trades: 0,
             redeems: 0,
@@ -1125,10 +1148,13 @@ async function fetchAllData() {
       row.sellRevenue += day.sellRevenue;
       row.redeemRevenue += day.redeemRevenue;
       row.cashBack += day.cashBack;
+      row.positionValue += day.positionValue || 0;
       row.externalInflow += day.externalInflow;
       row.externalOutflow += day.externalOutflow;
       row.externalNet += day.externalNet;
       row.tradingNet += day.tradingNet;
+      row.tradingMtmNet += day.tradingMtmNet !== undefined ? day.tradingMtmNet : day.tradingNet;
+      row.cashNet += day.cashNet !== undefined ? day.cashNet : day.net;
       row.net += day.net;
       row.trades += day.trades;
       row.redeems += day.redeems;
@@ -1184,8 +1210,11 @@ async function fetchAllData() {
           date: combinedToday.date,
           buyCost: round(combinedToday.buyCost, 2),
           cashBack: round(combinedToday.cashBack, 2),
+          positionValue: round(combinedToday.positionValue, 2),
           tradingNet: round(combinedToday.tradingNet, 2),
+          tradingMtmNet: round(combinedToday.tradingMtmNet !== undefined ? combinedToday.tradingMtmNet : combinedToday.tradingNet, 2),
           externalNet: round(combinedToday.externalNet, 2),
+          cashNet: round(combinedToday.cashNet !== undefined ? combinedToday.cashNet : combinedToday.net, 2),
           net: round(combinedToday.net, 2),
           trades: combinedToday.trades,
           redeems: combinedToday.redeems,
