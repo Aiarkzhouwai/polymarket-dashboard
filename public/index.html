@@ -248,7 +248,8 @@ function marketViewStats(market) {
   if (currentFilter === "TODAY") {
     const today = market.today || {};
     const buyCost = Number(today.buyCost || 0);
-    const pnl = Number(today.net || 0);
+    const currentValue = Number(market.currentValue || 0);
+    const pnl = Number(today.cashBack || 0) + currentValue - buyCost;
     return {
       time: formatShanghaiTimestamp(today.lastTimestamp),
       cost: buyCost,
@@ -407,10 +408,11 @@ function buildDetailRow(market, rowId, isOpen) {
   let html = `<tr class="detail-row ${isOpen ? "open" : ""}"><td colspan="11" class="detail-cell">`;
 
   if (market.today && market.today.hasActivity) {
+    const todayMtm = Number(market.today.cashBack || 0) + Number(market.currentValue || 0) - Number(market.today.buyCost || 0);
     html += `<div class="detail-section"><div class="detail-section-title">&#9200; Today Summary</div><div class="detail-grid">
       <div class="detail-stat"><div class="label">Buy</div><div class="val">${formatUsd(market.today.buyCost)}</div></div>
       <div class="detail-stat"><div class="label">Cash Back</div><div class="val">${formatUsd(market.today.cashBack)}</div></div>
-      <div class="detail-stat"><div class="label">Today Net</div><div class="val" style="color:${market.today.net >= 0 ? "var(--green)" : "var(--red)"}">${formatSignedUsd(market.today.net)}</div></div>
+      <div class="detail-stat"><div class="label">Today MTM / 当日含持仓</div><div class="val" style="color:${todayMtm >= 0 ? "var(--green)" : "var(--red)"}">${formatSignedUsd(todayMtm)}</div></div>
       <div class="detail-stat"><div class="label">Latest Today</div><div class="val">${formatShanghaiTimestamp(market.today.lastTimestamp)}</div></div>
     </div></div>`;
   }
