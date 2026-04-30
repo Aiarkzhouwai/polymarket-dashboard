@@ -18,8 +18,9 @@ const POLYGON_RPC_URLS = (
   process.env.POLYGON_RPC_URLS
   || process.env.POLYGON_RPC_URL
   || [
-    "https://polygon-rpc.com",
     "https://polygon-bor-rpc.publicnode.com",
+    "https://polygon.drpc.org",
+    "https://polygon-rpc.com",
     "https://1rpc.io/matic",
   ].join(",")
 ).split(",").map(url => url.trim()).filter(Boolean);
@@ -39,6 +40,27 @@ const POLYGON_PUSD = {
   address: "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB",
   decimals: 6,
 };
+const POLYMARKET_CTF = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045";
+const POLYMARKET_EXCHANGES = new Set([
+  "0xE111180000d2663C0091e4f400237545B87B996B",
+  "0xe2222d279d744050d28e00520010520000310F59",
+].map(address => address.toLowerCase()));
+const STABLECOIN_ADDRESSES = new Set([
+  POLYGON_USDC.address,
+  POLYGON_USDCE.address,
+  POLYGON_PUSD.address,
+].map(address => address.toLowerCase()));
+const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const TRANSFER_SINGLE_TOPIC = "0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62";
+const CHAIN_V2_START_BLOCK = Number(process.env.CHAIN_V2_START_BLOCK || 86127000);
+const CHAIN_TRADE_LOOKBACK_BLOCKS = process.env.CHAIN_TRADE_LOOKBACK_BLOCKS
+  ? Number(process.env.CHAIN_TRADE_LOOKBACK_BLOCKS)
+  : 0;
+const CHAIN_LOG_CHUNK_BLOCKS = Number(process.env.CHAIN_LOG_CHUNK_BLOCKS || 2000);
+const CHAIN_TRADES_ENABLED = process.env.CHAIN_TRADES_ENABLED !== "false";
+
+const marketMetadataCache = new Map();
+const blockTimestampCache = new Map();
 
 const EXTERNAL_INFLOW_TYPES = new Set([
   "REWARD",
@@ -201,6 +223,88 @@ function formatTokenAmount(rawHex, decimals) {
   return Number(fractionStr ? `${whole}.${fractionStr}` : whole.toString());
 }
 
+function normalizeAddress(address) {
+  return String(address || "").toLowerCase();
+}
+
+function topicAddress(address) {
+  return `0x${normalizeAddress(address).replace(/^0x/, "").padStart(64, "0")}`;
+}
+
+function addressFromTopic(topic) {
+  return `0x${String(topic || "").slice(-40)}`.toLowerCase();
+}
+
+function hexToNumber(hex) {
+  return Number(BigInt(hex || "0x0"));
+}
+
+function hexQuantity(value) {
+  return `0x${Number(value).toString(16)}`;
+}
+
+function tokenIdHexToDecimal(tokenIdHex) {
+  return BigInt(tokenIdHex).toString();
+}
+
+function stableAmount(rawHex) {
+  return formatTokenAmount(rawHex, 6);
+}
+
+async function blockTimestamp(blockNumberHex) {
+  if (blockTimestampCache.has(blockNumberHex)) {
+    return blockTimestampCache.get(blockNumberHex);
+  }
+
+  const block = await rpcCall("eth_getBlockByNumber", [blockNumberHex, false]);
+  const timestamp = hexToNumber(block?.timestamp);
+  blockTimestampCache.set(blockNumberHex, timestamp);
+  return timestamp;
+}
+
+async function fetchMarketMetadataByTokenId(tokenIdHex) {
+  const tokenId = tokenIdHexToDecimal(tokenIdHex);
+  if (marketMetadataCache.has(tokenId)) {
+    return marketMetadataCache.get(tokenId);
+  }
+
+  const markets = await fetch(`https://gamma-api.polymarket.com/markets?clob_token_ids=${tokenId}`, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(8000),
+  }).then(resp => (resp.ok ? resp.json() : [])).catch(() => []);
+  const market = Array.isArray(markets) ? markets[0] : null;
+  let metadata = {
+    conditionId: `chain:${tokenId}`,
+    title: `Unknown Market ${tokenId.slice(0, 8)}...`,
+    slug: "",
+    eventSlug: "",
+    icon: "",
+    outcome: "Unknown",
+    outcomeIndex: null,
+  };
+
+  if (market) {
+    let outcomes = [];
+    let tokenIds = [];
+    try { outcomes = JSON.parse(market.outcomes || "[]"); } catch { outcomes = []; }
+    try { tokenIds = JSON.parse(market.clobTokenIds || "[]"); } catch { tokenIds = []; }
+    const outcomeIndex = tokenIds.findIndex(id => String(id) === tokenId);
+
+    metadata = {
+      conditionId: market.conditionId || market.condition_id || "",
+      title: market.question || market.title || "Unknown Market",
+      slug: market.slug || "",
+      eventSlug: market.eventSlug || market.event_slug || "",
+      icon: market.icon || market.image || "",
+      outcome: outcomeIndex >= 0 ? normalizeOutcome(outcomes[outcomeIndex]) : "Unknown",
+      outcomeIndex: outcomeIndex >= 0 ? outcomeIndex : null,
+    };
+  }
+
+  marketMetadataCache.set(tokenId, metadata);
+  return metadata;
+}
+
 async function fetchPolygonStablecoinBalances(wallet) {
   const profile = await apiGet(`https://gamma-api.polymarket.com/public-profile?address=${wallet}`).catch(() => null);
   const candidateAddresses = [...new Set([
@@ -265,6 +369,187 @@ async function fetchPaginated(pathname, baseParams, limit, maxOffset) {
   }
 
   return items;
+}
+
+async function fetchLogsInChunks(filter, fromBlock, toBlock) {
+  const logs = [];
+  const chunkSize = Math.max(100, CHAIN_LOG_CHUNK_BLOCKS);
+
+  for (let start = fromBlock; start <= toBlock; start += chunkSize + 1) {
+    const end = Math.min(start + chunkSize, toBlock);
+    const batch = await rpcCall("eth_getLogs", [{
+      ...filter,
+      fromBlock: hexQuantity(start),
+      toBlock: hexQuantity(end),
+    }]).catch(() => []);
+
+    if (Array.isArray(batch) && batch.length > 0) {
+      logs.push(...batch);
+    }
+  }
+
+  return logs;
+}
+
+function parseTransferSingleLog(log) {
+  const words = String(log.data || "0x").slice(2).match(/.{64}/g) || [];
+  if (log.topics?.[0] !== TRANSFER_SINGLE_TOPIC || words.length < 2) return null;
+
+  return {
+    txHash: log.transactionHash,
+    blockNumber: log.blockNumber,
+    logIndex: hexToNumber(log.logIndex),
+    operator: addressFromTopic(log.topics[1]),
+    from: addressFromTopic(log.topics[2]),
+    to: addressFromTopic(log.topics[3]),
+    tokenIdHex: `0x${words[0]}`,
+    size: Number(BigInt(`0x${words[1]}`)) / 1e6,
+  };
+}
+
+function parseStableTransfers(receipt) {
+  return (receipt.logs || [])
+    .filter(log => log.topics?.[0] === TRANSFER_TOPIC && STABLECOIN_ADDRESSES.has(normalizeAddress(log.address)))
+    .map(log => ({
+      token: normalizeAddress(log.address),
+      from: addressFromTopic(log.topics[1]),
+      to: addressFromTopic(log.topics[2]),
+      amount: stableAmount(log.data),
+    }));
+}
+
+async function receiptToChainActivities(wallet, txHash, walletTransfers) {
+  const walletAddress = normalizeAddress(wallet);
+  const receipt = await rpcCall("eth_getTransactionReceipt", [txHash]).catch(() => null);
+  if (!receipt || receipt.status !== "0x1") return [];
+
+  const timestamp = await blockTimestamp(receipt.blockNumber).catch(() => 0);
+  const stableTransfers = parseStableTransfers(receipt);
+  const stableIn = stableTransfers
+    .filter(t => t.to === walletAddress)
+    .reduce((sum, t) => sum + t.amount, 0);
+  const stableOut = stableTransfers
+    .filter(t => t.from === walletAddress)
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const outgoingTokenTransfers = walletTransfers.filter(t => t.from === walletAddress);
+  const incomingTokenTransfers = walletTransfers.filter(t => t.to === walletAddress);
+  const side = stableOut > stableIn && incomingTokenTransfers.length > 0
+    ? "BUY"
+    : stableIn > stableOut && outgoingTokenTransfers.length > 0
+      ? "SELL"
+      : null;
+  if (!side) return [];
+
+  const tokenTransfers = side === "BUY" ? incomingTokenTransfers : outgoingTokenTransfers;
+  const totalSize = tokenTransfers.reduce((sum, transfer) => sum + transfer.size, 0);
+  const usdcTotal = side === "BUY" ? stableOut : stableIn;
+  if (totalSize <= 0 || usdcTotal <= 0) return [];
+
+  const activities = [];
+  for (const transfer of tokenTransfers) {
+    const metadata = await fetchMarketMetadataByTokenId(transfer.tokenIdHex);
+    const usdcSize = usdcTotal * (transfer.size / totalSize);
+    const size = transfer.size;
+
+    activities.push({
+      source: "chain",
+      proxyWallet: walletAddress,
+      timestamp,
+      conditionId: metadata.conditionId,
+      type: "TRADE",
+      size,
+      usdcSize,
+      transactionHash: txHash,
+      price: size > 0 ? usdcSize / size : 0,
+      asset: tokenIdHexToDecimal(transfer.tokenIdHex),
+      side,
+      outcomeIndex: metadata.outcomeIndex,
+      title: metadata.title,
+      slug: metadata.slug,
+      icon: metadata.icon,
+      eventSlug: metadata.eventSlug,
+      outcome: metadata.outcome,
+    });
+  }
+
+  return activities;
+}
+
+async function fetchChainTradeActivities(wallet, options = {}) {
+  if (!CHAIN_TRADES_ENABLED) return [];
+
+  const walletAddress = normalizeAddress(wallet);
+  const latestBlock = hexToNumber(await rpcCall("eth_blockNumber", []));
+  const fromBlock = options.fromBlock
+    || (options.lookbackBlocks
+      ? Math.max(CHAIN_V2_START_BLOCK, latestBlock - options.lookbackBlocks)
+      : CHAIN_TRADE_LOOKBACK_BLOCKS > 0
+        ? Math.max(CHAIN_V2_START_BLOCK, latestBlock - CHAIN_TRADE_LOOKBACK_BLOCKS)
+        : CHAIN_V2_START_BLOCK);
+  const toBlock = options.toBlock || latestBlock;
+  const walletTopic = topicAddress(walletAddress);
+  const baseFilter = {
+    address: POLYMARKET_CTF,
+    topics: [TRANSFER_SINGLE_TOPIC],
+  };
+
+  const [fromLogs, toLogs] = await Promise.all([
+    fetchLogsInChunks({ ...baseFilter, topics: [TRANSFER_SINGLE_TOPIC, null, walletTopic] }, fromBlock, toBlock),
+    fetchLogsInChunks({ ...baseFilter, topics: [TRANSFER_SINGLE_TOPIC, null, null, walletTopic] }, fromBlock, toBlock),
+  ]);
+
+  const grouped = new Map();
+  for (const rawLog of [...fromLogs, ...toLogs]) {
+    const transfer = parseTransferSingleLog(rawLog);
+    if (!transfer) continue;
+
+    const touchesExchange = POLYMARKET_EXCHANGES.has(transfer.operator)
+      || POLYMARKET_EXCHANGES.has(transfer.from)
+      || POLYMARKET_EXCHANGES.has(transfer.to);
+    if (!touchesExchange) continue;
+
+    if (!grouped.has(transfer.txHash)) grouped.set(transfer.txHash, []);
+    grouped.get(transfer.txHash).push(transfer);
+  }
+
+  if (grouped.size > 0) {
+    console.log(`[chain] ${walletAddress.slice(0, 8)} found ${grouped.size} txs from block ${fromBlock}`);
+  }
+
+  const activities = [];
+  for (const [txHash, transfers] of grouped.entries()) {
+    const uniqueTransfers = [...new Map(
+      transfers.map(transfer => [`${transfer.logIndex}:${transfer.tokenIdHex}:${transfer.from}:${transfer.to}`, transfer]),
+    ).values()];
+    activities.push(...await receiptToChainActivities(walletAddress, txHash, uniqueTransfers));
+  }
+
+  if (activities.length > 0) {
+    console.log(`[chain] ${walletAddress.slice(0, 8)} parsed ${activities.length} trades`);
+  }
+
+  return activities.sort((a, b) => toNumber(a.timestamp) - toNumber(b.timestamp));
+}
+
+function mergeActivityFeeds(dataApiActivity, chainActivity) {
+  const merged = [];
+  const seen = new Set();
+
+  for (const event of [...(chainActivity || []), ...(dataApiActivity || [])]) {
+    const key = [
+      event.transactionHash || "",
+      event.asset || "",
+      event.side || event.type || "",
+      event.conditionId || "",
+      event.outcome || "",
+    ].join("::");
+    if (event.transactionHash && seen.has(key)) continue;
+    if (event.transactionHash) seen.add(key);
+    merged.push(event);
+  }
+
+  return merged.sort((a, b) => toNumber(a.timestamp) - toNumber(b.timestamp));
 }
 
 function normalizeOutcome(outcome, fallback = "Unknown") {
@@ -701,7 +986,7 @@ function sortMarkets(markets) {
 
 // ===== Per-Wallet Data Fetching =====
 async function fetchWalletData(wallet) {
-  const [positions, closedPositions, activity, value, stablecoinBalances] = await Promise.all([
+  const [positions, closedPositions, dataApiActivity, chainActivity, value, stablecoinBalances] = await Promise.all([
     fetchPaginated(
       "/positions",
       { user: wallet },
@@ -720,6 +1005,10 @@ async function fetchWalletData(wallet) {
       ACTIVITY_PAGE_LIMIT,
       ACTIVITY_MAX_OFFSET,
     ).catch(() => []),
+    fetchChainTradeActivities(wallet).catch(err => {
+      console.warn(`[chain] ${wallet.slice(0, 8)} trade fetch failed: ${err.message}`);
+      return [];
+    }),
     apiGet(buildDataApiUrl("/value", { user: wallet })).catch(() => []),
     fetchPolygonStablecoinBalances(wallet).catch(() => ({
       address: wallet.toLowerCase(),
@@ -733,9 +1022,10 @@ async function fetchWalletData(wallet) {
 
   const posArray = Array.isArray(positions) ? positions : [];
   const closedArray = Array.isArray(closedPositions) ? closedPositions : [];
-  const sortedActivity = Array.isArray(activity)
-    ? [...activity].sort((a, b) => toNumber(a.timestamp) - toNumber(b.timestamp))
-    : [];
+  const sortedActivity = mergeActivityFeeds(
+    Array.isArray(dataApiActivity) ? dataApiActivity : [],
+    Array.isArray(chainActivity) ? chainActivity : [],
+  );
 
   let pseudonym = null;
   for (const event of sortedActivity) {
@@ -1297,10 +1587,16 @@ async function runNotification() {
       const alias = ALIASES[wallet] || null;
 
       // Fetch recent activity for trades, and current positions for sell ratio calculation
-      const [recentActivity, positions] = await Promise.all([
+      const notifyLookbackBlocks = Math.max(500, Math.ceil(LOOKBACK_MINUTES * 60 / 2) + 300);
+      const [dataApiRecentActivity, chainRecentActivity, positions] = await Promise.all([
         apiGet(`https://data-api.polymarket.com/activity?user=${wallet}&limit=200`).catch(() => []),
+        fetchChainTradeActivities(wallet, { lookbackBlocks: notifyLookbackBlocks }).catch(() => []),
         apiGet(`https://data-api.polymarket.com/positions?user=${wallet}&limit=500`).catch(() => []),
       ]);
+      const recentActivity = mergeActivityFeeds(
+        Array.isArray(dataApiRecentActivity) ? dataApiRecentActivity : [],
+        Array.isArray(chainRecentActivity) ? chainRecentActivity : [],
+      );
       const pseudonym = recentActivity.find(a => a.pseudonym)?.pseudonym;
       const label = alias || pseudonym || shortAddr;
 
