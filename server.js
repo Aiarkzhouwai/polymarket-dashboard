@@ -589,6 +589,8 @@ function emptyDailyRow(date) {
   return {
     date,
     buyCost: 0,
+    realizedCostBasis: 0,
+    realizedPnl: 0,
     sellRevenue: 0,
     redeemRevenue: 0,
     cashBack: 0,
@@ -615,6 +617,8 @@ function emptyTodayStats() {
   return {
     hasActivity: false,
     buyCost: 0,
+    realizedCostBasis: 0,
+    realizedPnl: 0,
     sellRevenue: 0,
     redeemRevenue: 0,
     cashBack: 0,
@@ -669,6 +673,53 @@ function updateTodayStats(today, activity, classification) {
 
   today.cashBack = today.sellRevenue + today.redeemRevenue;
   today.net = today.cashBack - today.buyCost;
+}
+
+function calculateTodayRealizedPnl(buys, sells, redeems, todayKey) {
+  const lots = [];
+  let realizedCostBasis = 0;
+  let realizedProceeds = 0;
+
+  const actions = [
+    ...buys.map(trade => ({ ...trade, kind: "BUY" })),
+    ...sells.map(trade => ({ ...trade, kind: "SELL" })),
+    ...redeems.map(trade => ({ ...trade, kind: "REDEEM" })),
+  ].sort((a, b) => toNumber(a.timestamp) - toNumber(b.timestamp));
+
+  for (const action of actions) {
+    const size = Math.max(toNumber(action.size), 0);
+    const usdc = Math.max(toNumber(action.usdc), 0);
+    if (size <= 0 && action.kind !== "REDEEM") continue;
+
+    if (action.kind === "BUY") {
+      lots.push({ size, cost: usdc });
+      continue;
+    }
+
+    let remaining = size;
+    let costBasis = 0;
+    while (remaining > 0 && lots.length > 0) {
+      const lot = lots[0];
+      const used = Math.min(remaining, lot.size);
+      const usedCost = lot.size > 0 ? lot.cost * (used / lot.size) : 0;
+      costBasis += usedCost;
+      lot.size -= used;
+      lot.cost -= usedCost;
+      remaining -= used;
+      if (lot.size <= 1e-9) lots.shift();
+    }
+
+    if (shanghaiDate(toNumber(action.timestamp)) === todayKey) {
+      realizedCostBasis += costBasis;
+      realizedProceeds += usdc;
+    }
+  }
+
+  return {
+    realizedCostBasis,
+    realizedProceeds,
+    realizedPnl: realizedProceeds - realizedCostBasis,
+  };
 }
 
 function buildTradeEntry(activity) {
@@ -744,6 +795,8 @@ function aggregateDailyRows(dailyMap) {
     .map(row => ({
       ...row,
       buyCost: round(row.buyCost, 2),
+      realizedCostBasis: round(row.realizedCostBasis, 2),
+      realizedPnl: round(row.realizedPnl, 2),
       sellRevenue: round(row.sellRevenue, 2),
       redeemRevenue: round(row.redeemRevenue, 2),
       cashBack: round(row.cashBack, 2),
@@ -814,6 +867,12 @@ function summarizeMarket(market) {
     const sellRevenue = outcome.sells.reduce((sum, trade) => sum + toNumber(trade.usdc), 0);
     const sellSize = outcome.sells.reduce((sum, trade) => sum + toNumber(trade.size), 0);
     const redeemRevenue = outcome.redeems.reduce((sum, trade) => sum + toNumber(trade.usdc), 0);
+    const todayRealized = calculateTodayRealizedPnl(
+      outcome.buys,
+      outcome.sells,
+      outcome.redeems,
+      currentShanghaiDate(),
+    );
 
     const currentBought = outcome.currentPositions.reduce((sum, position) => {
       return sum + toNumber(position.initialValue);
@@ -865,10 +924,12 @@ function summarizeMarket(market) {
     resolvedPositionCount += finalValuePositions.length + outcome.closedPositions.length;
 
     today.buyCost += outcome.today.buyCost;
+    today.realizedCostBasis += todayRealized.realizedCostBasis;
+    today.realizedPnl += todayRealized.realizedPnl;
     today.sellRevenue += outcome.today.sellRevenue;
     today.redeemRevenue += outcome.today.redeemRevenue;
     today.cashBack += outcome.today.cashBack;
-    today.net += outcome.today.net;
+    today.net += todayRealized.realizedProceeds > 0 ? todayRealized.realizedPnl : outcome.today.net;
     today.eventCount += outcome.today.eventCount;
     today.hasActivity = today.hasActivity || outcome.today.hasActivity;
     today.lastTimestamp = Math.max(today.lastTimestamp, outcome.today.lastTimestamp);
@@ -912,10 +973,12 @@ function summarizeMarket(market) {
       today: {
         ...outcome.today,
         buyCost: round(outcome.today.buyCost, 2),
+        realizedCostBasis: round(todayRealized.realizedCostBasis, 2),
+        realizedPnl: round(todayRealized.realizedPnl, 2),
         sellRevenue: round(outcome.today.sellRevenue, 2),
         redeemRevenue: round(outcome.today.redeemRevenue, 2),
         cashBack: round(outcome.today.cashBack, 2),
-        net: round(outcome.today.net, 2),
+        net: round(todayRealized.realizedProceeds > 0 ? todayRealized.realizedPnl : outcome.today.net, 2),
       },
     };
   }
@@ -988,6 +1051,8 @@ function summarizeMarket(market) {
     today: {
       ...today,
       buyCost: round(today.buyCost, 2),
+      realizedCostBasis: round(today.realizedCostBasis, 2),
+      realizedPnl: round(today.realizedPnl, 2),
       sellRevenue: round(today.sellRevenue, 2),
       redeemRevenue: round(today.redeemRevenue, 2),
       cashBack: round(today.cashBack, 2),
@@ -1186,8 +1251,18 @@ async function fetchWalletData(wallet) {
     .reduce((sum, market) => sum + toNumber(market.currentValue), 0);
   if (dailyPnLMap[todayKey]) {
     const todayRow = dailyPnLMap[todayKey];
+    const todayRealizedCostBasis = marketResults
+      .filter(market => market.today?.hasActivity)
+      .reduce((sum, market) => sum + toNumber(market.today?.realizedCostBasis), 0);
+    const todayRealizedPnl = marketResults
+      .filter(market => market.today?.hasActivity)
+      .reduce((sum, market) => sum + toNumber(market.today?.realizedPnl), 0);
     todayRow.positionValue = todayPositionValue;
-    todayRow.tradingMtmNet = todayRow.tradingNet + todayRow.positionValue;
+    todayRow.realizedCostBasis = todayRealizedCostBasis;
+    todayRow.realizedPnl = todayRealizedPnl;
+    todayRow.tradingMtmNet = todayRealizedCostBasis > 0
+      ? todayRealizedPnl
+      : todayRow.tradingNet + todayRow.positionValue;
     todayRow.cashNet = todayRow.tradingNet + todayRow.externalNet;
     todayRow.net = todayRow.tradingMtmNet + todayRow.externalNet;
   }
@@ -1261,6 +1336,8 @@ async function fetchWalletData(wallet) {
       today: {
         date: todaySummary.date,
         buyCost: round(todaySummary.buyCost, 2),
+        realizedCostBasis: round(todaySummary.realizedCostBasis, 2),
+        realizedPnl: round(todaySummary.realizedPnl, 2),
         cashBack: round(todaySummary.cashBack, 2),
         positionValue: round(todaySummary.positionValue, 2),
         tradingNet: round(todaySummary.tradingNet, 2),
@@ -1350,6 +1427,8 @@ async function fetchAllData() {
           today: {
             date: currentShanghaiDate(),
             buyCost: 0,
+            realizedCostBasis: 0,
+            realizedPnl: 0,
             cashBack: 0,
             tradingNet: 0,
             tradingMtmNet: 0,
@@ -1456,6 +1535,8 @@ async function fetchAllData() {
     for (const day of walletData.dailyPnL) {
       const row = ensureDailyRow(combinedDaily, day.date);
       row.buyCost += day.buyCost;
+      row.realizedCostBasis += day.realizedCostBasis || 0;
+      row.realizedPnl += day.realizedPnl || 0;
       row.sellRevenue += day.sellRevenue;
       row.redeemRevenue += day.redeemRevenue;
       row.cashBack += day.cashBack;
@@ -1520,6 +1601,8 @@ async function fetchAllData() {
         today: {
           date: combinedToday.date,
           buyCost: round(combinedToday.buyCost, 2),
+          realizedCostBasis: round(combinedToday.realizedCostBasis, 2),
+          realizedPnl: round(combinedToday.realizedPnl, 2),
           cashBack: round(combinedToday.cashBack, 2),
           positionValue: round(combinedToday.positionValue, 2),
           tradingNet: round(combinedToday.tradingNet, 2),
