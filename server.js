@@ -1666,6 +1666,77 @@ function refreshDataInBackground(reason = "background") {
   return refreshPromise;
 }
 
+function buildMobileSummary(data, options = {}) {
+  const topN = Math.max(1, Math.min(20, Number(options.topN || 8)));
+  const combined = data?.combined?.summary || {};
+  const wallets = [];
+  const positions = [];
+
+  for (const walletSummary of data?.walletSummaries || []) {
+    const walletData = data?.data?.[walletSummary.wallet] || {};
+    const summary = walletData.summary || walletSummary;
+
+    wallets.push({
+      wallet: walletSummary.wallet,
+      name: walletSummary.displayName || walletSummary.shortAddr,
+      shortAddr: walletSummary.shortAddr,
+      balance: round(summary.walletStablecoinTotal, 2),
+      usdc: round(summary.walletUsdc, 2),
+      usdce: round(summary.walletUsdce, 2),
+      pusd: round(summary.walletPusd, 2),
+      todayPnl: round(summary.today?.net, 2),
+      todayCashBack: round(summary.today?.cashBack, 2),
+      todayBuy: round(summary.today?.buyCost, 2),
+      todaySoldCost: round(summary.today?.realizedCostBasis, 2),
+      openValue: round(toNumber(summary.openPositionValue) + toNumber(summary.claimableValue), 2),
+      markets: summary.totalMarkets || walletSummary.markets || 0,
+    });
+
+    for (const market of walletData.markets || []) {
+      const value = toNumber(market.openValue) + toNumber(market.claimableValue);
+      const isActive = market.status === "HOLDING" || value > 0;
+      if (!isActive) continue;
+
+      positions.push({
+        wallet: walletSummary.wallet,
+        walletName: walletSummary.displayName || walletSummary.shortAddr,
+        market: market.title,
+        side: market.outcome,
+        status: market.status,
+        shares: round(Object.values(market.outcomeBreakdown || {})
+          .filter(outcome => outcome.outcome === market.outcome)
+          .reduce((sum, outcome) => sum + toNumber(outcome.buySize) - toNumber(outcome.sellSize), 0), 2),
+        value: round(value, 2),
+        pnl: round(market.pnl, 2),
+        roi: market.pnlPct,
+        lastActivity: market.lastTradeTimestamp,
+      });
+    }
+  }
+
+  positions.sort((a, b) => {
+    if (toNumber(b.value) !== toNumber(a.value)) return toNumber(b.value) - toNumber(a.value);
+    return Math.abs(toNumber(b.pnl)) - Math.abs(toNumber(a.pnl));
+  });
+
+  return {
+    lastUpdated: data?.lastUpdated || new Date().toISOString(),
+    refreshing: Boolean(refreshPromise) || Boolean(data?.refreshing),
+    summary: {
+      walletCount: combined.walletCount || wallets.length,
+      totalBalance: round(combined.walletStablecoinTotal, 2),
+      todayPnl: round(combined.today?.net, 2),
+      todayCashBack: round(combined.today?.cashBack, 2),
+      todayBuy: round(combined.today?.buyCost, 2),
+      todaySoldCost: round(combined.today?.realizedCostBasis, 2),
+      openValue: round(toNumber(combined.openPositionValue) + toNumber(combined.claimableValue), 2),
+      netPnl: round(combined.netPnL, 2),
+    },
+    wallets,
+    positions: positions.slice(0, topN),
+  };
+}
+
 async function getData(forceRefresh = false) {
   const now = Date.now();
   if (!forceRefresh) {
@@ -1705,6 +1776,15 @@ app.get("/api/refresh", async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+app.get("/api/mobile-summary", async (req, res) => {
+  const data = await getData(false);
+  if (data.error) {
+    res.status(503).json(data);
+    return;
+  }
+  res.json(buildMobileSummary(data, { topN: req.query.topN }));
 });
 
 app.get("/api/health", (req, res) => {
