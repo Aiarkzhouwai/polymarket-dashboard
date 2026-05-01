@@ -280,7 +280,7 @@ async function refresh(manual = false) {
     const resp = await fetch("/api/data?refresh=" + manual);
     data = await resp.json();
     document.getElementById("walletCount").textContent = `${data.combined.summary.walletCount} wallets tracked`;
-    document.getElementById("updateTime").textContent = "Updated " + formatShanghaiDateTime(data.lastUpdated);
+    document.getElementById("updateTime").textContent = `${data.refreshing ? "Refreshing in background · " : "Updated "}${formatShanghaiDateTime(data.lastUpdated)}`;
     renderWalletBar();
     renderCurrentView();
   } catch (err) {

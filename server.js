@@ -1643,6 +1643,93 @@ function loadCachedData() {
   }
 }
 
+function emptyDashboardSnapshot() {
+  const today = emptyDailyRow(currentShanghaiDate());
+  return {
+    lastUpdated: new Date().toISOString(),
+    refreshing: true,
+    wallets: WALLETS,
+    walletSummaries: WALLETS.map(wallet => ({
+      wallet,
+      shortAddr: wallet.slice(0, 6) + "..." + wallet.slice(-4),
+      displayName: ALIASES[wallet] || wallet.slice(0, 8) + "...",
+      pseudonym: null,
+      pnl: 0,
+      tradingPnL: 0,
+      pnlPct: 0,
+      cost: 0,
+      revenue: 0,
+      markets: 0,
+      wonCount: 0,
+      lostCount: 0,
+      soldCount: 0,
+      holdCount: 0,
+      winRate: 0,
+      activePositions: 0,
+      todayNet: 0,
+      walletUsdc: 0,
+      walletUsdce: 0,
+      walletPusd: 0,
+      walletStablecoinTotal: 0,
+      walletStablecoinAddress: wallet,
+      walletStablecoinSource: "wallet",
+    })),
+    combined: {
+      summary: {
+        totalMarkets: 0,
+        wonCount: 0,
+        lostCount: 0,
+        soldCount: 0,
+        holdCount: 0,
+        totalBought: 0,
+        totalCost: 0,
+        totalRevenue: 0,
+        tradingOutflow: 0,
+        tradingInflow: 0,
+        redeemRevenue: 0,
+        realizedTradingPnL: 0,
+        positionPnL: 0,
+        totalTradingPnL: 0,
+        tradingPnL: 0,
+        externalInflow: 0,
+        externalOutflow: 0,
+        externalNet: 0,
+        netPnL: 0,
+        tradingPnLPct: 0,
+        netPnLPct: 0,
+        winRate: 0,
+        walletCount: WALLETS.length,
+        accountValue: 0,
+        openPositionValue: 0,
+        claimableValue: 0,
+        walletUsdc: 0,
+        walletUsdce: 0,
+        walletPusd: 0,
+        walletStablecoinTotal: 0,
+        activePositions: 0,
+        today: {
+          date: today.date,
+          buyCost: 0,
+          realizedCostBasis: 0,
+          realizedPnl: 0,
+          cashBack: 0,
+          positionValue: 0,
+          tradingNet: 0,
+          tradingMtmNet: 0,
+          externalNet: 0,
+          cashNet: 0,
+          net: 0,
+          trades: 0,
+          redeems: 0,
+          externalEvents: 0,
+        },
+      },
+      dailyPnL: [today],
+    },
+    data: {},
+  };
+}
+
 function refreshDataInBackground(reason = "background") {
   if (refreshPromise) return refreshPromise;
   console.log(`Refreshing dashboard data (${reason})...`);
@@ -1750,6 +1837,9 @@ async function getData(forceRefresh = false) {
         refreshing: Boolean(refreshPromise),
       };
     }
+
+    refreshDataInBackground("cold start");
+    return emptyDashboardSnapshot();
   }
 
   if (!forceRefresh && latestData && now - lastFetchTime < FETCH_INTERVAL) return latestData;
