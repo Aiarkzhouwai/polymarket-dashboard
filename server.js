@@ -446,8 +446,15 @@ async function receiptToChainActivities(wallet, txHash, walletTransfers) {
   const usdcTotal = side === "BUY" ? stableOut : stableIn;
   if (totalSize <= 0 || usdcTotal <= 0) return [];
 
-  const activities = [];
+  const transfersByToken = new Map();
   for (const transfer of tokenTransfers) {
+    const existing = transfersByToken.get(transfer.tokenIdHex) || { ...transfer, size: 0 };
+    existing.size += transfer.size;
+    transfersByToken.set(transfer.tokenIdHex, existing);
+  }
+
+  const activities = [];
+  for (const transfer of transfersByToken.values()) {
     const metadata = await fetchMarketMetadataByTokenId(transfer.tokenIdHex);
     const usdcSize = usdcTotal * (transfer.size / totalSize);
     const size = transfer.size;
@@ -534,18 +541,32 @@ async function fetchChainTradeActivities(wallet, options = {}) {
 
 function mergeActivityFeeds(dataApiActivity, chainActivity) {
   const merged = [];
-  const seen = new Set();
+  const seen = new Map();
 
   for (const event of [...(chainActivity || []), ...(dataApiActivity || [])]) {
-    const key = [
-      event.transactionHash || "",
-      event.asset || "",
-      event.side || event.type || "",
-      event.conditionId || "",
-      event.outcome || "",
-    ].join("::");
-    if (event.transactionHash && seen.has(key)) continue;
-    if (event.transactionHash) seen.add(key);
+    const key = event.transactionHash
+      ? [
+        event.transactionHash,
+        event.asset || "",
+        event.side || event.type || "",
+      ].join("::")
+      : "";
+    if (key && seen.has(key)) {
+      const existing = seen.get(key);
+      if (String(existing.title || "").startsWith("Unknown Market") && event.title) {
+        existing.title = event.title;
+        existing.conditionId = event.conditionId || existing.conditionId;
+        existing.slug = event.slug || existing.slug;
+        existing.eventSlug = event.eventSlug || existing.eventSlug;
+        existing.icon = event.icon || existing.icon;
+      }
+      if (existing.outcome === "Unknown" && event.outcome) {
+        existing.outcome = event.outcome;
+        existing.outcomeIndex = event.outcomeIndex ?? existing.outcomeIndex;
+      }
+      continue;
+    }
+    if (key) seen.set(key, event);
     merged.push(event);
   }
 
@@ -1523,14 +1544,63 @@ async function fetchAllData() {
 // ===== API Routes =====
 let latestData = null;
 let lastFetchTime = 0;
+let refreshPromise = null;
 const FETCH_INTERVAL = 2 * 60 * 1000;
+
+function loadCachedData() {
+  if (latestData) return latestData;
+  try {
+    const cached = JSON.parse(fs.readFileSync(CACHE_FILE, "utf-8"));
+    latestData = cached;
+    lastFetchTime = cached.lastUpdated ? Date.parse(cached.lastUpdated) || 0 : 0;
+    console.log(`Loaded cached dashboard data from ${cached.lastUpdated || "unknown time"}`);
+    return latestData;
+  } catch {
+    return null;
+  }
+}
+
+function refreshDataInBackground(reason = "background") {
+  if (refreshPromise) return refreshPromise;
+  console.log(`Refreshing dashboard data (${reason})...`);
+  refreshPromise = fetchAllData()
+    .then(data => {
+      latestData = data;
+      lastFetchTime = Date.now();
+      const summary = data.combined?.summary;
+      if (summary) {
+        console.log(`Refreshed: ${summary.walletCount} wallets, ${summary.totalMarkets} markets, net P&L: $${summary.netPnL.toFixed(2)}`);
+      }
+      return data;
+    })
+    .catch(err => {
+      console.error(`Background refresh failed: ${err.message}`);
+      return latestData;
+    })
+    .finally(() => {
+      refreshPromise = null;
+    });
+  return refreshPromise;
+}
 
 async function getData(forceRefresh = false) {
   const now = Date.now();
+  if (!forceRefresh) {
+    const cached = latestData || loadCachedData();
+    if (cached) {
+      if (now - lastFetchTime >= FETCH_INTERVAL) {
+        refreshDataInBackground("stale cache");
+      }
+      return {
+        ...cached,
+        refreshing: Boolean(refreshPromise),
+      };
+    }
+  }
+
   if (!forceRefresh && latestData && now - lastFetchTime < FETCH_INTERVAL) return latestData;
   try {
-    latestData = await fetchAllData();
-    lastFetchTime = now;
+    latestData = await refreshDataInBackground(forceRefresh ? "manual" : "cold start");
     return latestData;
   } catch (err) {
     console.error("Fetch error:", err.message);
@@ -1702,19 +1772,12 @@ async function runNotification() {
 async function start() {
   console.log("Dashboard starting on port " + PORT);
   console.log("Wallets:", WALLETS.length);
-  console.log("Fetching initial data...");
 
-  try {
-    latestData = await fetchAllData();
-    lastFetchTime = Date.now();
-    const summary = latestData.combined.summary;
-    console.log(`Loaded: ${summary.walletCount} wallets, ${summary.totalMarkets} markets, net P&L: $${summary.netPnL.toFixed(2)}`);
-  } catch (err) {
-    console.error("Initial fetch failed:", err.message, err.stack);
-  }
+  loadCachedData();
 
   app.listen(PORT);
   console.log(`Dashboard ready on http://localhost:${PORT}`);
+  refreshDataInBackground("startup");
 
   if (WEBHOOK_URL) {
     console.log(`Notification: every ${NOTIFY_INTERVAL_MS / 1000}s`);
