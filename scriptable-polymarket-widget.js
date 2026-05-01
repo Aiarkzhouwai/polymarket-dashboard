@@ -29,6 +29,7 @@ async function loadSummary() {
 async function createWidget(data) {
   const widget = new ListWidget();
   widget.url = DASHBOARD_URL;
+  widget.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000);
   widget.backgroundGradient = makeGradient();
   widget.setPadding(13, 13, 13, 13);
 
