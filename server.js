@@ -1776,6 +1776,7 @@ function buildMobileSummary(data, options = {}) {
       todayBuy: round(summary.today?.buyCost, 2),
       todaySoldCost: round(summary.today?.realizedCostBasis, 2),
       openValue: round(toNumber(summary.openPositionValue) + toNumber(summary.claimableValue), 2),
+      totalPnl: round(summary.netPnL ?? walletSummary.pnl, 2),
       markets: summary.totalMarkets || walletSummary.markets || 0,
     });
 
