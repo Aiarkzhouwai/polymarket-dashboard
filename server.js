@@ -5,8 +5,9 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 3100;
 const SHANGHAI_TZ = "Asia/Shanghai";
-const DATA_DIR = __dirname;
+const DATA_DIR = process.env.DATA_DIR || __dirname;
 const CACHE_FILE = path.join(DATA_DIR, "dashboard_cache.json");
+const REFRESH_STATE_FILE = path.join(DATA_DIR, "refresh_state.json");
 
 const ACTIVITY_PAGE_LIMIT = 500;
 const ACTIVITY_MAX_OFFSET = 10000;
@@ -61,6 +62,8 @@ const CHAIN_TRADES_ENABLED = process.env.CHAIN_TRADES_ENABLED !== "false";
 
 const marketMetadataCache = new Map();
 const blockTimestampCache = new Map();
+
+fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const EXTERNAL_INFLOW_TYPES = new Set([
   "REWARD",
@@ -1643,7 +1646,7 @@ async function fetchAllData() {
     data: results,
   };
 
-  fs.writeFileSync(CACHE_FILE, JSON.stringify(data, null, 2));
+  safeWriteJson(CACHE_FILE, data);
   return data;
 }
 
@@ -1652,6 +1655,43 @@ let latestData = null;
 let lastFetchTime = 0;
 let refreshPromise = null;
 const FETCH_INTERVAL = 2 * 60 * 1000;
+let refreshState = loadRefreshState();
+
+function safeWriteJson(filePath, data) {
+  const tmpPath = `${filePath}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2));
+  fs.renameSync(tmpPath, filePath);
+}
+
+function loadRefreshState() {
+  try {
+    return JSON.parse(fs.readFileSync(REFRESH_STATE_FILE, "utf-8"));
+  } catch {
+    return {
+      status: "idle",
+      startedAt: null,
+      finishedAt: null,
+      lastSuccessAt: null,
+      durationMs: null,
+      error: null,
+      reason: null,
+    };
+  }
+}
+
+function saveRefreshState(patch = {}) {
+  refreshState = {
+    ...refreshState,
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    safeWriteJson(REFRESH_STATE_FILE, refreshState);
+  } catch (err) {
+    console.error(`Failed to write refresh state: ${err.message}`);
+  }
+  return refreshState;
+}
 
 function loadCachedData() {
   if (latestData) return latestData;
@@ -1756,6 +1796,15 @@ function emptyDashboardSnapshot() {
 function refreshDataInBackground(reason = "background") {
   if (refreshPromise) return refreshPromise;
   console.log(`Refreshing dashboard data (${reason})...`);
+  const startedAt = Date.now();
+  saveRefreshState({
+    status: "running",
+    startedAt: new Date(startedAt).toISOString(),
+    finishedAt: null,
+    durationMs: null,
+    error: null,
+    reason,
+  });
   refreshPromise = fetchAllData()
     .then(data => {
       latestData = data;
@@ -1764,10 +1813,23 @@ function refreshDataInBackground(reason = "background") {
       if (summary) {
         console.log(`Refreshed: ${summary.walletCount} wallets, ${summary.totalMarkets} markets, net P&L: $${summary.netPnL.toFixed(2)}`);
       }
+      saveRefreshState({
+        status: "idle",
+        finishedAt: new Date().toISOString(),
+        lastSuccessAt: data.lastUpdated || new Date().toISOString(),
+        durationMs: Date.now() - startedAt,
+        error: null,
+      });
       return data;
     })
     .catch(err => {
       console.error(`Background refresh failed: ${err.message}`);
+      saveRefreshState({
+        status: "failed",
+        finishedAt: new Date().toISOString(),
+        durationMs: Date.now() - startedAt,
+        error: err.message,
+      });
       return latestData;
     })
     .finally(() => {
@@ -1886,7 +1948,7 @@ app.get("/api/data", async (req, res) => {
 
 app.get("/api/refresh", async (req, res) => {
   try {
-    res.json({ success: true, ...await fetchAllData() });
+    res.json({ success: true, ...await refreshDataInBackground("manual") });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1906,6 +1968,18 @@ app.get("/api/health", (req, res) => {
     status: "ok",
     wallets: WALLETS.length,
     lastFetch: new Date(lastFetchTime).toISOString(),
+    dataDir: DATA_DIR,
+    refresh: refreshState,
+  });
+});
+
+app.get("/api/refresh-status", (req, res) => {
+  res.json({
+    ...refreshState,
+    running: Boolean(refreshPromise),
+    lastFetch: new Date(lastFetchTime).toISOString(),
+    cacheFile: CACHE_FILE,
+    dataDir: DATA_DIR,
   });
 });
 
