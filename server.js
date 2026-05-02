@@ -8,6 +8,7 @@ const SHANGHAI_TZ = "Asia/Shanghai";
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 const CACHE_FILE = path.join(DATA_DIR, "dashboard_cache.json");
 const REFRESH_STATE_FILE = path.join(DATA_DIR, "refresh_state.json");
+const REFRESH_TIMEOUT_MS = Number(process.env.REFRESH_TIMEOUT_MS || 180000);
 
 const ACTIVITY_PAGE_LIMIT = 500;
 const ACTIVITY_MAX_OFFSET = 10000;
@@ -1794,7 +1795,15 @@ function emptyDashboardSnapshot() {
 }
 
 function refreshDataInBackground(reason = "background") {
-  if (refreshPromise) return refreshPromise;
+  if (refreshPromise) {
+    const startedAtMs = refreshState.startedAt ? Date.parse(refreshState.startedAt) : 0;
+    if (startedAtMs && Date.now() - startedAtMs > REFRESH_TIMEOUT_MS + 30000) {
+      console.warn("Refresh promise appears stale; allowing a new refresh.");
+      refreshPromise = null;
+    } else {
+      return refreshPromise;
+    }
+  }
   console.log(`Refreshing dashboard data (${reason})...`);
   const startedAt = Date.now();
   saveRefreshState({
@@ -1805,8 +1814,17 @@ function refreshDataInBackground(reason = "background") {
     error: null,
     reason,
   });
-  refreshPromise = fetchAllData()
+
+  let timeoutId = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`Refresh timed out after ${REFRESH_TIMEOUT_MS}ms`));
+    }, REFRESH_TIMEOUT_MS);
+  });
+
+  refreshPromise = Promise.race([fetchAllData(), timeoutPromise])
     .then(data => {
+      clearTimeout(timeoutId);
       latestData = data;
       lastFetchTime = Date.now();
       const summary = data.combined?.summary;
@@ -1823,6 +1841,7 @@ function refreshDataInBackground(reason = "background") {
       return data;
     })
     .catch(err => {
+      clearTimeout(timeoutId);
       console.error(`Background refresh failed: ${err.message}`);
       saveRefreshState({
         status: "failed",
