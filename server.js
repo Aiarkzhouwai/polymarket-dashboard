@@ -1015,6 +1015,31 @@ function positionHasFinalValue(position) {
   return ended && (curPrice === 0 || curPrice === 1);
 }
 
+function tradeEntryKey(trade) {
+  if (!trade?.txHash) return "";
+  return [
+    String(trade.txHash).toLowerCase(),
+    String(trade.type || ""),
+    String(trade.outcome || ""),
+    String(round(trade.size, 6)),
+    String(round(trade.usdc, 6)),
+  ].join("::");
+}
+
+function uniqueTrades(trades) {
+  const seen = new Set();
+  const unique = [];
+
+  for (const trade of trades || []) {
+    const key = tradeEntryKey(trade);
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    unique.push(trade);
+  }
+
+  return unique;
+}
+
 function summarizeMarket(market) {
   const allBuyTrades = [];
   const allSellTrades = [];
@@ -1043,15 +1068,18 @@ function summarizeMarket(market) {
   let primaryWeight = -1;
 
   for (const [name, outcome] of Object.entries(market.outcomes)) {
-    const buyCostFromTrades = outcome.buys.reduce((sum, trade) => sum + toNumber(trade.usdc), 0);
-    const buySize = outcome.buys.reduce((sum, trade) => sum + toNumber(trade.size), 0);
-    const sellRevenue = outcome.sells.reduce((sum, trade) => sum + toNumber(trade.usdc), 0);
-    const sellSize = outcome.sells.reduce((sum, trade) => sum + toNumber(trade.size), 0);
-    const redeemRevenue = outcome.redeems.reduce((sum, trade) => sum + toNumber(trade.usdc), 0);
+    const buys = uniqueTrades(outcome.buys);
+    const sells = uniqueTrades(outcome.sells);
+    const redeems = uniqueTrades(outcome.redeems);
+    const buyCostFromTrades = buys.reduce((sum, trade) => sum + toNumber(trade.usdc), 0);
+    const buySize = buys.reduce((sum, trade) => sum + toNumber(trade.size), 0);
+    const sellRevenue = sells.reduce((sum, trade) => sum + toNumber(trade.usdc), 0);
+    const sellSize = sells.reduce((sum, trade) => sum + toNumber(trade.size), 0);
+    const redeemRevenue = redeems.reduce((sum, trade) => sum + toNumber(trade.usdc), 0);
     const todayRealized = calculateTodayRealizedPnl(
-      outcome.buys,
-      outcome.sells,
-      outcome.redeems,
+      buys,
+      sells,
+      redeems,
       currentShanghaiDate(),
     );
 
@@ -1102,9 +1130,9 @@ function summarizeMarket(market) {
     totalOpenValue += openValue;
     totalClaimableValue += claimableValue;
     totalOpenCostBasis += openCostBasis;
-    buyCount += outcome.buys.length;
-    sellCount += outcome.sells.length;
-    redeemCount += outcome.redeems.length;
+    buyCount += buys.length;
+    sellCount += sells.length;
+    redeemCount += redeems.length;
     unresolvedPositionCount += openPositions.length;
     resolvedPositionCount += finalValuePositions.length + outcome.closedPositions.length;
 
@@ -1126,18 +1154,18 @@ function summarizeMarket(market) {
       primaryOutcome = name;
     }
 
-    for (const trade of outcome.buys) {
+    for (const trade of buys) {
       allBuyTrades.push(trade);
       allActions.push(trade);
       if (!earliestBuyTimestamp || trade.timestamp < earliestBuyTimestamp) {
         earliestBuyTimestamp = trade.timestamp;
       }
     }
-    for (const trade of outcome.sells) {
+    for (const trade of sells) {
       allSellTrades.push(trade);
       allActions.push(trade);
     }
-    for (const trade of outcome.redeems) {
+    for (const trade of redeems) {
       allRedeemTrades.push(trade);
       allActions.push(trade);
     }
@@ -1153,9 +1181,9 @@ function summarizeMarket(market) {
       realizedPnl: round(realizedPnlValue, 2),
       positionPnl: round(positionPnlValue, 2),
       totalPnl: round(totalPnlFromFlows, 2),
-      buyCount: outcome.buys.length,
-      sellCount: outcome.sells.length,
-      redeemCount: outcome.redeems.length,
+      buyCount: buys.length,
+      sellCount: sells.length,
+      redeemCount: redeems.length,
       avgBuyPrice: buySize > 0 ? round(buyCostFromTrades / buySize, 4) : 0,
       today: {
         ...outcome.today,
