@@ -7,6 +7,7 @@ const PORT = process.env.PORT || 3100;
 const SHANGHAI_TZ = "Asia/Shanghai";
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 const CACHE_FILE = path.join(DATA_DIR, "dashboard_cache.json");
+const CHAIN_LEDGER_FILE = path.join(DATA_DIR, "chain_trades.json");
 const REFRESH_STATE_FILE = path.join(DATA_DIR, "refresh_state.json");
 const REFRESH_TIMEOUT_MS = Number(process.env.REFRESH_TIMEOUT_MS || 180000);
 
@@ -58,11 +59,14 @@ const CHAIN_V2_START_BLOCK = Number(process.env.CHAIN_V2_START_BLOCK || 86127000
 const CHAIN_TRADE_LOOKBACK_BLOCKS = process.env.CHAIN_TRADE_LOOKBACK_BLOCKS
   ? Number(process.env.CHAIN_TRADE_LOOKBACK_BLOCKS)
   : 120000;
+const DASHBOARD_CHAIN_LOOKBACK_BLOCKS = Number(process.env.DASHBOARD_CHAIN_LOOKBACK_BLOCKS || 1000);
+const DASHBOARD_CHAIN_SAFETY_BLOCKS = Number(process.env.DASHBOARD_CHAIN_SAFETY_BLOCKS || 500);
 const CHAIN_LOG_CHUNK_BLOCKS = Number(process.env.CHAIN_LOG_CHUNK_BLOCKS || 2000);
 const CHAIN_TRADES_ENABLED = process.env.CHAIN_TRADES_ENABLED !== "false";
 
 const marketMetadataCache = new Map();
 const blockTimestampCache = new Map();
+let chainLedgerCache = null;
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -543,6 +547,95 @@ async function fetchChainTradeActivities(wallet, options = {}) {
   return activities.sort((a, b) => toNumber(a.timestamp) - toNumber(b.timestamp));
 }
 
+function emptyChainLedger() {
+  return {
+    version: 1,
+    updatedAt: null,
+    wallets: {},
+  };
+}
+
+function loadChainLedger() {
+  if (chainLedgerCache) return chainLedgerCache;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(CHAIN_LEDGER_FILE, "utf-8"));
+    chainLedgerCache = {
+      ...emptyChainLedger(),
+      ...parsed,
+      wallets: parsed.wallets || {},
+    };
+  } catch {
+    chainLedgerCache = emptyChainLedger();
+  }
+  return chainLedgerCache;
+}
+
+function saveChainLedger() {
+  const ledger = loadChainLedger();
+  ledger.updatedAt = new Date().toISOString();
+  safeWriteJson(CHAIN_LEDGER_FILE, ledger);
+}
+
+function ensureLedgerWallet(wallet) {
+  const ledger = loadChainLedger();
+  const normalized = normalizeAddress(wallet);
+  if (!ledger.wallets[normalized]) {
+    ledger.wallets[normalized] = {
+      lastScannedBlock: null,
+      updatedAt: null,
+      trades: {},
+    };
+  }
+  return ledger.wallets[normalized];
+}
+
+function ledgerActivitiesForWallet(wallet) {
+  const entry = loadChainLedger().wallets[normalizeAddress(wallet)];
+  if (!entry?.trades) return [];
+  return Object.values(entry.trades);
+}
+
+function upsertChainActivities(wallet, activities, lastScannedBlock) {
+  const entry = ensureLedgerWallet(wallet);
+  let changed = false;
+
+  for (const activity of activities || []) {
+    const key = dashboardActivityKey(activity);
+    if (!key) continue;
+    entry.trades[key] = {
+      ...activity,
+      source: activity.source || "chain",
+      proxyWallet: normalizeAddress(wallet),
+    };
+    changed = true;
+  }
+
+  if (lastScannedBlock && toNumber(lastScannedBlock) > toNumber(entry.lastScannedBlock)) {
+    entry.lastScannedBlock = toNumber(lastScannedBlock);
+    changed = true;
+  }
+
+  if (changed) {
+    entry.updatedAt = new Date().toISOString();
+    saveChainLedger();
+  }
+}
+
+async function fetchIncrementalChainActivities(wallet) {
+  if (!CHAIN_TRADES_ENABLED) return [];
+
+  const entry = ensureLedgerWallet(wallet);
+  const latestBlock = hexToNumber(await rpcCall("eth_blockNumber", []));
+  const fallbackFromBlock = Math.max(CHAIN_V2_START_BLOCK, latestBlock - DASHBOARD_CHAIN_LOOKBACK_BLOCKS);
+  const fromBlock = entry.lastScannedBlock
+    ? Math.max(CHAIN_V2_START_BLOCK, toNumber(entry.lastScannedBlock) - DASHBOARD_CHAIN_SAFETY_BLOCKS)
+    : fallbackFromBlock;
+
+  const activities = await fetchChainTradeActivities(wallet, { fromBlock, toBlock: latestBlock });
+  upsertChainActivities(wallet, activities, latestBlock);
+  return activities;
+}
+
 function mergeActivityFeeds(dataApiActivity, chainActivity) {
   const merged = [];
   const seen = new Map();
@@ -572,6 +665,47 @@ function mergeActivityFeeds(dataApiActivity, chainActivity) {
     }
     if (key) seen.set(key, event);
     merged.push(event);
+  }
+
+  return merged.sort((a, b) => toNumber(a.timestamp) - toNumber(b.timestamp));
+}
+
+function dashboardActivityKey(event) {
+  if (!event?.transactionHash) return "";
+  const marketId = event.conditionId || event.asset || event.title || "";
+  const side = event.side || event.type || "";
+  const outcome = event.outcome || event.outcomeIndex || "";
+  return [
+    String(event.transactionHash).toLowerCase(),
+    String(marketId),
+    String(side),
+    String(outcome),
+  ].join("::");
+}
+
+function dashboardActivityFallbackKey(event) {
+  if (!event?.transactionHash) return "";
+  return [
+    String(event.transactionHash).toLowerCase(),
+    String(event.side || event.type || ""),
+    String(event.outcome || event.outcomeIndex || ""),
+  ].join("::");
+}
+
+function mergeDashboardActivityFeeds(...feeds) {
+  const merged = [];
+  const seen = new Set();
+  const fallbackSeen = new Set();
+
+  for (const feed of feeds) {
+    for (const event of feed || []) {
+      const key = dashboardActivityKey(event);
+      const fallbackKey = dashboardActivityFallbackKey(event);
+      if ((key && seen.has(key)) || (fallbackKey && fallbackSeen.has(fallbackKey))) continue;
+      if (key) seen.add(key);
+      if (fallbackKey) fallbackSeen.add(fallbackKey);
+      merged.push(event);
+    }
   }
 
   return merged.sort((a, b) => toNumber(a.timestamp) - toNumber(b.timestamp));
@@ -753,6 +887,37 @@ function buildTradeEntry(activity) {
     timestamp: toNumber(activity.timestamp),
     txHash: activity.transactionHash || null,
   };
+}
+
+function cachedActivitiesForWallet(wallet) {
+  const walletData = latestData?.data?.[wallet] || null;
+  if (!walletData?.markets) return [];
+
+  const activities = [];
+  for (const market of walletData.markets || []) {
+    for (const trade of market.trades || []) {
+      if (!trade.txHash || !trade.timestamp) continue;
+      const type = trade.type === "REDEEM" ? "REDEEM" : "TRADE";
+      activities.push({
+        source: "cache",
+        proxyWallet: normalizeAddress(wallet),
+        transactionHash: trade.txHash,
+        timestamp: toNumber(trade.timestamp),
+        conditionId: market.conditionId,
+        title: market.title,
+        slug: market.slug,
+        eventSlug: market.eventSlug,
+        icon: market.icon,
+        type,
+        side: trade.type === "SELL" ? "SELL" : trade.type === "BUY" ? "BUY" : undefined,
+        outcome: trade.outcome,
+        size: toNumber(trade.size),
+        price: toNumber(trade.price),
+        usdcSize: toNumber(trade.usdc),
+      });
+    }
+  }
+  return activities;
 }
 
 function makeMarketSeed(seed = {}) {
@@ -1097,7 +1262,17 @@ function sortMarkets(markets) {
 }
 
 // ===== Per-Wallet Data Fetching =====
-async function fetchWalletData(wallet) {
+async function fetchWalletData(wallet, options = {}) {
+  const chainMode = options.chainMode || "incremental";
+  const fetchDashboardChain = chainMode === "heavy"
+    ? fetchChainTradeActivities(wallet).then(activities => {
+      upsertChainActivities(wallet, activities);
+      return activities;
+    })
+    : chainMode === "none"
+      ? Promise.resolve([])
+      : fetchIncrementalChainActivities(wallet);
+
   const [positions, closedPositions, dataApiActivity, chainActivity, value, stablecoinBalances] = await Promise.all([
     fetchPaginated(
       "/positions",
@@ -1117,7 +1292,7 @@ async function fetchWalletData(wallet) {
       ACTIVITY_PAGE_LIMIT,
       ACTIVITY_MAX_OFFSET,
     ).catch(() => []),
-    fetchChainTradeActivities(wallet).catch(err => {
+    fetchDashboardChain.catch(err => {
       console.warn(`[chain] ${wallet.slice(0, 8)} trade fetch failed: ${err.message}`);
       return [];
     }),
@@ -1134,9 +1309,11 @@ async function fetchWalletData(wallet) {
 
   const posArray = Array.isArray(positions) ? positions : [];
   const closedArray = Array.isArray(closedPositions) ? closedPositions : [];
-  const sortedActivity = mergeActivityFeeds(
-    Array.isArray(dataApiActivity) ? dataApiActivity : [],
+  const sortedActivity = mergeDashboardActivityFeeds(
     Array.isArray(chainActivity) ? chainActivity : [],
+    ledgerActivitiesForWallet(wallet),
+    cachedActivitiesForWallet(wallet),
+    Array.isArray(dataApiActivity) ? dataApiActivity : [],
   );
 
   let pseudonym = null;
@@ -1398,16 +1575,17 @@ async function fetchWalletData(wallet) {
 }
 
 // ===== Fetch All Wallets =====
-async function fetchAllData() {
+async function fetchAllData(options = {}) {
   if (WALLETS.length === 0) throw new Error("No wallets configured. Set WALLETS env var.");
 
   const results = {};
+  const chainMode = options.chainMode || "incremental";
 
   for (let i = 0; i < WALLETS.length; i += 1) {
     const wallet = WALLETS[i];
-    console.log(`Fetching wallet ${i + 1}/${WALLETS.length}: ${wallet.slice(0, 8)}...`);
+    console.log(`Fetching wallet ${i + 1}/${WALLETS.length}: ${wallet.slice(0, 8)}... (${chainMode})`);
     try {
-      results[wallet] = await fetchWalletData(wallet);
+      results[wallet] = await fetchWalletData(wallet, { chainMode });
       console.log(`  -> ${results[wallet].displayName}: ${results[wallet].summary.totalMarkets} markets`);
     } catch (err) {
       console.error(`  -> Error: ${err.message}`);
@@ -1588,6 +1766,7 @@ async function fetchAllData() {
 
   const data = {
     lastUpdated: new Date().toISOString(),
+    refreshMode: chainMode,
     wallets: WALLETS,
     walletSummaries,
     combined: {
@@ -1794,7 +1973,7 @@ function emptyDashboardSnapshot() {
   };
 }
 
-function refreshDataInBackground(reason = "background") {
+function refreshDataInBackground(reason = "background", options = {}) {
   if (refreshPromise) {
     const startedAtMs = refreshState.startedAt ? Date.parse(refreshState.startedAt) : 0;
     if (startedAtMs && Date.now() - startedAtMs > REFRESH_TIMEOUT_MS + 30000) {
@@ -1804,7 +1983,8 @@ function refreshDataInBackground(reason = "background") {
       return refreshPromise;
     }
   }
-  console.log(`Refreshing dashboard data (${reason})...`);
+  const chainMode = options.chainMode || "incremental";
+  console.log(`Refreshing dashboard data (${reason}, chain=${chainMode})...`);
   const startedAt = Date.now();
   saveRefreshState({
     status: "running",
@@ -1813,6 +1993,7 @@ function refreshDataInBackground(reason = "background") {
     durationMs: null,
     error: null,
     reason,
+    chainMode,
   });
 
   let timeoutId = null;
@@ -1822,7 +2003,7 @@ function refreshDataInBackground(reason = "background") {
     }, REFRESH_TIMEOUT_MS);
   });
 
-  refreshPromise = Promise.race([fetchAllData(), timeoutPromise])
+  refreshPromise = Promise.race([fetchAllData({ chainMode }), timeoutPromise])
     .then(data => {
       clearTimeout(timeoutId);
       latestData = data;
@@ -1929,13 +2110,13 @@ function buildMobileSummary(data, options = {}) {
   };
 }
 
-async function getData(forceRefresh = false) {
+async function getData(forceRefresh = false, options = {}) {
   const now = Date.now();
   if (!forceRefresh) {
     const cached = latestData || loadCachedData();
     if (cached) {
       if (now - lastFetchTime >= FETCH_INTERVAL) {
-        refreshDataInBackground("stale cache");
+        refreshDataInBackground("stale cache", { chainMode: "incremental" });
       }
       return {
         ...cached,
@@ -1943,13 +2124,15 @@ async function getData(forceRefresh = false) {
       };
     }
 
-    refreshDataInBackground("cold start");
+    refreshDataInBackground("cold start", { chainMode: "incremental" });
     return emptyDashboardSnapshot();
   }
 
   if (!forceRefresh && latestData && now - lastFetchTime < FETCH_INTERVAL) return latestData;
   try {
-    latestData = await refreshDataInBackground(forceRefresh ? "manual" : "cold start");
+    latestData = await refreshDataInBackground(forceRefresh ? "manual" : "cold start", {
+      chainMode: options.chainMode || "incremental",
+    });
     return latestData;
   } catch (err) {
     console.error("Fetch error:", err.message);
@@ -1962,12 +2145,14 @@ app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/data", async (req, res) => {
   const force = req.query.refresh === "true";
-  res.json(await getData(force));
+  const chainMode = req.query.heavy === "true" ? "heavy" : "incremental";
+  res.json(await getData(force, { chainMode }));
 });
 
 app.get("/api/refresh", async (req, res) => {
   try {
-    res.json({ success: true, ...await refreshDataInBackground("manual") });
+    const chainMode = req.query.heavy === "true" ? "heavy" : "incremental";
+    res.json({ success: true, ...await refreshDataInBackground("manual", { chainMode }) });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1993,11 +2178,14 @@ app.get("/api/health", (req, res) => {
 });
 
 app.get("/api/refresh-status", (req, res) => {
+  const ledger = loadChainLedger();
   res.json({
     ...refreshState,
     running: Boolean(refreshPromise),
     lastFetch: new Date(lastFetchTime).toISOString(),
     cacheFile: CACHE_FILE,
+    chainLedgerFile: CHAIN_LEDGER_FILE,
+    chainLedgerWallets: Object.keys(ledger.wallets || {}).length,
     dataDir: DATA_DIR,
   });
 });
